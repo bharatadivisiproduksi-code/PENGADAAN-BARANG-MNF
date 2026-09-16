@@ -149,7 +149,10 @@
       <span id="themeLabel">Mode Gelap</span>
       <span class="switch"><span class="knob"></span></span>
     </button>
-    <div class="sidebar-footer"><span id="recordCountLabel">0</span> catatan tersimpan</div>
+    <div class="sidebar-footer">
+      <span id="recordCountLabel">0</span> catatan tersimpan
+      <div id="syncStatus" style="margin-top:8px;">Mode lokal</div>
+    </div>
   </aside>
 
   <main class="main" id="mainContent"></main>
@@ -168,6 +171,107 @@ const DEPT_LIST = ["Produksi","HRD","Finance","Marketing","IT","GA","Purchasing"
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const STORAGE_KEY = "pengadaan_barang_records_v1";
 const THEME_KEY = "pengadaan_theme_v1";
+
+// ================= ONLINE SYNC =================
+// Paste your Google Apps Script Web App URL here after deployment.
+// Example: https://script.google.com/macros/s/XXXXXXXX/exec
+const API_URL = "https://script.google.com/macros/s/AKfycbzOY5xvTIPvbcjR48u3SSnfUXQ6vaBgi7TJUtWbCpPHft4__WhvzNLQ8eeZe9tZ6z9TOw/exec";
+const SYNC_INTERVAL_MS = 10000;
+let syncTimer = null;
+let isSyncing = false;
+
+function onlineMode(){
+  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(API_URL);
+}
+
+async function apiRequest(payload){
+  if(!onlineMode()) throw new Error("API_URL belum diisi.");
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type":"text/plain;charset=utf-8"},
+    body: JSON.stringify(payload)
+  });
+  if(!response.ok) throw new Error("Server API gagal: HTTP " + response.status);
+  const data = await response.json();
+  if(!data.ok) throw new Error(data.error || "API mengembalikan error.");
+  return data;
+}
+
+function showSyncStatus(message, isError=false){
+  const el = document.getElementById("syncStatus");
+  if(!el) return;
+  el.textContent = message;
+  el.style.color = isError ? "#C1443C" : "var(--muted)";
+}
+
+async function loadRecordsOnline(silent=false){
+  if(!onlineMode()){
+    loadRecords();
+    return;
+  }
+  if(isSyncing) return;
+  isSyncing = true;
+  if(!silent) showSyncStatus("Memuat data online...");
+  try{
+    const data = await apiRequest({action:"list"});
+    records = Array.isArray(data.records) ? data.records : [];
+    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+    if(!silent) showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
+    render();
+  }catch(e){
+    console.error(e);
+    showSyncStatus("Gagal sinkron: " + e.message, true);
+  }finally{
+    isSyncing = false;
+  }
+}
+
+async function saveRecordOnline(record){
+  if(!onlineMode()){
+    const idx = records.findIndex(r=>r.id===record.id);
+    if(idx>=0) records[idx]=record; else records.unshift(record);
+    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+    persist();
+    return;
+  }
+  showSyncStatus("Menyimpan...");
+  await apiRequest({action:"save", record});
+  await loadRecordsOnline(true);
+  showSyncStatus("✓ Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
+}
+
+async function deleteRecordOnline(id){
+  if(!onlineMode()){
+    records = records.filter(r=>r.id!==id);
+    persist();
+    return;
+  }
+  showSyncStatus("Menghapus...");
+  await apiRequest({action:"delete", id});
+  await loadRecordsOnline(true);
+  showSyncStatus("✓ Terhapus • " + new Date().toLocaleTimeString("id-ID"));
+}
+
+async function updateStatusOnline(id, status){
+  const rec = records.find(r=>r.id===id);
+  if(!rec) return;
+  const updated = {...rec, status};
+  if(!onlineMode()){
+    rec.status = status;
+    persist();
+    return;
+  }
+  showSyncStatus("Memperbarui status...");
+  await apiRequest({action:"save", record:updated});
+  await loadRecordsOnline(true);
+  showSyncStatus("✓ Status diperbarui • " + new Date().toLocaleTimeString("id-ID"));
+}
+
+function startAutoSync(){
+  if(!onlineMode()) return;
+  if(syncTimer) clearInterval(syncTimer);
+  syncTimer = setInterval(()=>loadRecordsOnline(true), SYNC_INTERVAL_MS);
+}
 
 // ---------- Theme ----------
 function applyTheme(theme){
@@ -652,8 +756,8 @@ function attachHandlers(){
     document.querySelectorAll("[data-edit]").forEach(b=> b.onclick = ()=> openEditForm(b.dataset.edit));
     document.querySelectorAll("[data-del]").forEach(b=> b.onclick = ()=> { confirmDeleteId = b.dataset.del; render(); });
     document.querySelectorAll("[data-confirm-del]").forEach(b=> b.onclick = ()=>{
-      records = records.filter(r=>r.id!==b.dataset.confirmDel);
-      persist();
+      const id = b.dataset.confirmDel;
+      deleteRecordOnline(id).catch(e=>alert("Gagal menghapus: "+e.message));
       confirmDeleteId = null;
       render();
     });
@@ -661,7 +765,11 @@ function attachHandlers(){
     document.querySelectorAll("[data-status-change]").forEach(sel=>{
       sel.onchange = (e)=>{
         const rec = records.find(r=>r.id===sel.dataset.statusChange);
-        if(rec){ rec.status = e.target.value; persist(); render(); }
+        if(rec){
+          updateStatusOnline(sel.dataset.statusChange, e.target.value)
+            .catch(e=>alert("Gagal memperbarui status: "+e.message));
+          render();
+        }
       };
     });
   }
@@ -694,11 +802,9 @@ function attachHandlers(){
       updated.qty = Number(updated.qty)||0;
       updated.estimasiHarga = Number(updated.estimasiHarga)||0;
 
-      const idx = records.findIndex(r=>r.id===updated.id);
-      if(idx>=0) records[idx]=updated; else records.unshift(updated);
-      records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
-      persist();
-      setView("list");
+      saveRecordOnline(updated)
+        .then(()=>setView("list"))
+        .catch(e=>alert("Gagal menyimpan: "+e.message));
     };
   }
 }
@@ -725,8 +831,14 @@ document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 
 // ---------- Init ----------
 initTheme();
-loadRecords();
-render();
+if(onlineMode()){
+  showSyncStatus("Menghubungkan...");
+  loadRecordsOnline().then(startAutoSync);
+}else{
+  loadRecords();
+  render();
+  showSyncStatus("Mode lokal — isi API_URL untuk sinkron HP ↔ PC");
+}
 </script>
 </body>
 </html>
