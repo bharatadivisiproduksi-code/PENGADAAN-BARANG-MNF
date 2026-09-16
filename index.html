@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manufakture - Pengadaan Barang</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#20262E;
+    --paper:#EDEFE9;
+    --paper-deep:#E2E5DD;
+    --panel:#FFFFFF;
+    --line:#D8DCD2;
+    --rail:#20262E;
+    --rail-soft:#2C333D;
+    --accent:#D98A2B;
+    --accent-deep:#B76F1B;
+    --muted:#6B7280;
+  }
+  html[data-theme="dark"]{
+    --ink:#E7E9EC;
+    --paper:#14181D;
+    --paper-deep:#1B2027;
+    --panel:#1E242B;
+    --line:#2C333C;
+    --rail:#0E1116;
+    --rail-soft:#191F26;
+    --accent:#E3A24C;
+    --accent-deep:#F0B76B;
+    --muted:#98A1AC;
+  }
+  html[data-theme="dark"] .stat-card .icon{background:var(--rail-soft);}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--paper);color:var(--ink);}
+  h1,h2{font-family:Georgia,serif;font-weight:normal;margin:0;}
+  button{cursor:pointer;font-family:inherit;}
+  input,select{font-family:inherit;font-size:14px;}
+
+  .app{display:flex;min-height:100vh;}
+
+  .sidebar{width:230px;flex-shrink:0;background:var(--rail);display:flex;flex-direction:column;padding:24px 0;}
+  .brand{padding:0 20px;margin-bottom:32px;}
+  .brand-mark{width:44px;height:44px;margin-bottom:10px;}
+  .brand-mark svg{width:100%;height:100%;display:block;}
+  .brand .name{color:var(--accent);font-size:19px;}
+  .brand .sub{color:#8B94A0;font-size:12px;margin-top:2px;letter-spacing:.02em;}
+  .nav{display:flex;flex-direction:column;gap:4px;padding:0 8px;}
+  .nav button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:transparent;border:none;color:#B7BEC8;font-size:14px;text-align:left;border-radius:2px;}
+  .nav button.active{background:var(--rail-soft);color:#F4E9D8;}
+  .add-btn{margin:16px 8px 0;padding:10px 12px;background:var(--accent);color:#20140A;border:none;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .sidebar-footer{margin-top:auto;padding:24px 20px 0;color:#5E6773;font-size:12px;}
+  .theme-row{margin:16px 8px 0;padding:10px 12px;background:var(--rail-soft);border:1px solid #333B45;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .theme-row span{color:#D6DCE4;font-size:13px;}
+  .switch{position:relative;width:40px;height:22px;flex-shrink:0;background:#3A424D;border-radius:20px;transition:background .2s ease;}
+  .switch .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s ease;}
+  html[data-theme="dark"] .switch{background:var(--accent);}
+  html[data-theme="dark"] .switch .knob{left:20px;}
+
+  .main{flex:1;padding:32px;overflow-y:auto;}
+
+  .page-header{display:flex;align-items:center;justify-content:between;justify-content:space-between;margin-bottom:24px;}
+  .page-header h1{font-size:24px;}
+  .page-header p{color:var(--muted);font-size:14px;margin-top:4px;}
+  .btn-dark{background:var(--ink);color:#fff;border:none;padding:10px 16px;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .btn-accent{background:var(--accent);color:#20140A;border:none;padding:10px 20px;font-size:14px;}
+  .btn-plain{background:transparent;border:none;color:var(--muted);padding:10px 20px;font-size:14px;}
+  .btn-outline{background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:10px 16px;font-size:14px;display:flex;align-items:center;gap:8px;}
+
+  .stat-row{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px;}
+  .stat-card{flex:1;min-width:190px;background:var(--panel);border:1px solid var(--line);padding:20px;}
+  .stat-card .icon{width:32px;height:32px;background:var(--paper-deep);color:var(--accent-deep);display:flex;align-items:center;justify-content:center;margin-bottom:12px;font-size:15px;}
+  .stat-card .label{color:var(--muted);font-size:13px;}
+  .stat-card .value{font-family:Georgia,serif;font-size:24px;margin-top:12px;}
+
+  .grid-2{display:grid;grid-template-columns:2fr 3fr;gap:16px;}
+  @media (max-width:900px){.grid-2{grid-template-columns:1fr;}}
+  .panel{background:var(--panel);border:1px solid var(--line);padding:20px;}
+  .panel h2{color:var(--ink);font-family:system-ui,sans-serif;font-size:13px;margin-bottom:16px;color:var(--muted);}
+
+  .status-row{display:flex;align-items:center;gap:12px;font-size:13px;margin-bottom:10px;}
+  .status-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;border:1px solid;white-space:nowrap;}
+  .status-dot{width:6px;height:6px;border-radius:50%;}
+  .bar-track{flex:1;height:8px;background:var(--paper-deep);}
+  .bar-fill{height:100%;}
+  .count-label{width:26px;text-align:right;color:var(--muted);}
+
+  .filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .search-box{display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--paper);border:1px solid var(--line);min-width:220px;}
+  .search-box input{border:none;background:transparent;padding:10px 0;width:100%;outline:none;color:var(--ink);}
+  select.filter-select{padding:9px 10px;background:var(--paper);border:1px solid var(--line);color:var(--ink);}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  thead tr{border-bottom:1px solid var(--line);}
+  th{text-align:left;padding:12px 16px;font-weight:normal;color:var(--muted);}
+  td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .table-wrap{background:var(--panel);border:1px solid var(--line);overflow-x:auto;}
+  .empty-state{padding:48px 20px;text-align:center;color:var(--muted);font-size:14px;}
+  .sub-text{color:var(--muted);font-size:12px;margin-top:2px;}
+  .mono{font-family:ui-monospace,Consolas,monospace;}
+  .row-actions{display:flex;align-items:center;gap:14px;}
+  .row-actions button{background:none;border:none;color:var(--muted);font-size:13px;padding:0;}
+  .status-select{border:none;background:transparent;font-size:12px;}
+  .confirm-del{display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap;}
+  .confirm-del button{border:none;background:none;padding:0;}
+
+  form{display:flex;flex-direction:column;gap:20px;max-width:760px;}
+  .form-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .form-header button{background:none;border:none;font-size:20px;color:var(--muted);}
+  fieldset{border:none;padding:0;margin:0;}
+  .section{background:var(--panel);border:1px solid var(--line);padding:20px;}
+  .section h3{color:var(--muted);font-size:12px;margin:0 0 16px;font-weight:normal;}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .field{display:flex;flex-direction:column;gap:6px;font-size:13px;}
+  .field span{color:var(--muted);}
+  .field span .req{color:var(--accent-deep);}
+  .field input,.field select{padding:9px 10px;background:var(--paper);border:1px solid var(--line);color:var(--ink);}
+  .field input[readonly]{opacity:.7;}
+  .form-actions{display:flex;align-items:center;gap:12px;}
+
+  .loading{color:var(--muted);font-size:14px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo Manufacture">
+          <circle cx="120" cy="120" r="112" fill="#22301F" stroke="#3E8E63" stroke-width="2"/>
+          <path d="M120 48 C164 66, 178 110, 152 154 C130 190, 90 190, 72 158 C54 126, 74 82, 120 48 Z" fill="#5BAF80"/>
+          <path d="M120 55 C138 86, 140 126, 118 168" fill="none" stroke="#22301F" stroke-width="3" stroke-linecap="round"/>
+          <rect x="96" y="150" width="48" height="62" rx="10" fill="#EAF2EA" stroke="#22301F" stroke-width="3"/>
+          <rect x="111" y="135" width="18" height="19" rx="3" fill="#EAF2EA" stroke="#22301F" stroke-width="3"/>
+          <line x1="96" y1="178" x2="144" y2="178" stroke="#D98A2B" stroke-width="4"/>
+        </svg>
+      </div>
+      <div class="name">Manufacture</div>
+      <div class="sub">Herbal &amp; Cosmetics Manufacture</div>
+    </div>
+    <nav class="nav">
+      <button data-view="dashboard" class="active">▤ Dashboard</button>
+      <button data-view="list">☰ Daftar Pengadaan</button>
+    </nav>
+    <button class="add-btn" id="btnAddSidebar">+ Tambah Pengadaan</button>
+    <button class="theme-row" id="themeToggle" type="button" aria-label="Ganti mode tampilan">
+      <span id="themeLabel">Mode Gelap</span>
+      <span class="switch"><span class="knob"></span></span>
+    </button>
+    <div class="sidebar-footer"><span id="recordCountLabel">0</span> catatan tersimpan</div>
+  </aside>
+
+  <main class="main" id="mainContent"></main>
+</div>
+
+<script>
+// ---------- Constants ----------
+const STATUS_LIST = ["Pengajuan","Disetujui","PO","Proses Pengadaan","Diterima","Selesai","Batal"];
+const STATUS_COLORS = {
+  "Pengajuan":"#5B6B7A","Disetujui":"#3B6FA0","PO":"#B98328","Proses Pengadaan":"#D98A2B",
+  "Diterima":"#2F8F82","Selesai":"#3F7D58","Batal":"#C1443C"
+};
+const DIVISI_LIST = ["GA","Purchasing"];
+const SATUAN_LIST = ["Pcs","Unit","Box","Botol","Kg","Liter","Meter","Set","Dus"];
+const DEPT_LIST = ["Produksi","HRD","Finance","Marketing","IT","GA","Purchasing","Lainnya"];
+const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+const STORAGE_KEY = "pengadaan_barang_records_v1";
+const THEME_KEY = "pengadaan_theme_v1";
+
+// ---------- Theme ----------
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme", theme);
+  if(chartInstance) drawChart();
+}
+function toggleTheme(){
+  const current = document.documentElement.getAttribute("data-theme")==="dark" ? "dark" : "light";
+  const next = current==="dark" ? "light" : "dark";
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+  applyTheme(next);
+}
+function initTheme(){
+  let saved = "light";
+  try{ saved = localStorage.getItem(THEME_KEY) || "light"; }catch(e){}
+  applyTheme(saved);
+}
+
+// ---------- State ----------
+let records = [];
+let view = "dashboard";
+let editingId = null;
+let form = null;
+let search = "";
+let filterDivisi = "Semua";
+let filterStatus = "Semua";
+let filterBulan = "Semua";
+let statBulan = "Semua";
+let confirmDeleteId = null;
+let chartInstance = null;
+
+// ---------- Storage ----------
+function loadRecords(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    records = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    records = [];
+  }
+  records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+}
+function persist(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  }catch(e){
+    alert("Gagal menyimpan data ke penyimpanan browser.");
+  }
+}
+
+// ---------- Helpers ----------
+function idFor(){ return Date.now()+"-"+Math.random().toString(36).slice(2,8); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function nextNoPengadaan(){
+  let max=0;
+  records.forEach(r=>{
+    const m=/PGD-(\d+)/.exec(r.noPengadaan||"");
+    if(m) max=Math.max(max, parseInt(m[1],10));
+  });
+  return "PGD-"+String(max+1).padStart(3,"0");
+}
+function formatRupiah(n){ return "Rp " + (Number(n)||0).toLocaleString("id-ID"); }
+function formatRupiahShort(n){
+  n = Number(n)||0;
+  const neg = n<0; n = Math.abs(n);
+  let out;
+  if(n>=1000000000) out = (n/1000000000).toFixed(1).replace(/\.0$/,"")+" M";
+  else if(n>=1000000) out = (n/1000000).toFixed(1).replace(/\.0$/,"")+" jt";
+  else if(n>=1000) out = (n/1000).toFixed(0)+" rb";
+  else out = String(n);
+  return "Rp " + (neg?"-":"") + out;
+}
+function formatTgl(iso){
+  if(!iso) return "-";
+  const d=new Date(iso);
+  if(isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("id-ID",{day:"2-digit",month:"short",year:"numeric"});
+}
+function monthIndexFromISO(iso){
+  if(!iso) return null;
+  const d=new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  return d.getMonth();
+}
+function emptyForm(){
+  return {
+    id:"", noPengadaan:"", tglPengajuan: todayISO(), divisi:"GA", departemen:"Produksi",
+    keperluan:"", namaBarang:"", spesifikasi:"", qty:"", satuan:"Pcs", estimasiHarga:"",
+    supplier:"", tglPO:"", tglDiterima:"", status:"Pengajuan", keterangan:""
+  };
+}
+function escapeHtml(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ---------- Derived ----------
+function computeStats(){
+  const total = records.length;
+  const ga = records.filter(r=>r.divisi==="GA").length;
+  const purchasing = records.filter(r=>r.divisi==="Purchasing").length;
+  const totalNilai = records.reduce((s,r)=> s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0), 0);
+  const statusCounts = {};
+  STATUS_LIST.forEach(s=>statusCounts[s]=0);
+  records.forEach(r=>{ if(statusCounts[r.status]!==undefined) statusCounts[r.status]++; });
+  return {total,ga,purchasing,totalNilai,statusCounts};
+}
+function computeMonthly(){
+  const counts = MONTHS.map(m=>({bulan:m.slice(0,3), total:0, nilai:0}));
+  records.forEach(r=>{
+    const idx = monthIndexFromISO(r.tglPengajuan);
+    if(idx!==null){
+      counts[idx].total++;
+      counts[idx].nilai += (Number(r.qty)||0)*(Number(r.estimasiHarga)||0);
+    }
+  });
+  return counts;
+}
+function computeTotalEstimasiForBulan(bulan){
+  if(bulan==="Semua"){
+    return records.reduce((s,r)=> s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0), 0);
+  }
+  const idx = MONTHS.indexOf(bulan);
+  return records.reduce((s,r)=>{
+    if(monthIndexFromISO(r.tglPengajuan)===idx) return s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0);
+    return s;
+  },0);
+}
+function computeFiltered(){
+  return records.filter(r=>{
+    if(filterDivisi!=="Semua" && r.divisi!==filterDivisi) return false;
+    if(filterStatus!=="Semua" && r.status!==filterStatus) return false;
+    if(filterBulan!=="Semua"){
+      const idx = monthIndexFromISO(r.tglPengajuan);
+      if(idx===null || MONTHS[idx]!==filterBulan) return false;
+    }
+    if(search.trim()){
+      const q=search.toLowerCase();
+      const hay = `${r.noPengadaan} ${r.namaBarang} ${r.supplier} ${r.departemen}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+// ---------- Render ----------
+function setView(v){
+  view = v;
+  editingId = null;
+  document.querySelectorAll(".nav button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.view===v);
+  });
+  render();
+}
+function openNewForm(){
+  form = emptyForm();
+  form.id = idFor();
+  editingId = null;
+  view = "form";
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+  render();
+}
+function openEditForm(id){
+  const r = records.find(x=>x.id===id);
+  if(!r) return;
+  form = {...emptyForm(), ...r};
+  editingId = id;
+  view = "form";
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+  render();
+}
+
+function render(){
+  document.getElementById("recordCountLabel").textContent = records.length;
+  const main = document.getElementById("mainContent");
+  if(view==="dashboard") main.innerHTML = renderDashboard();
+  else if(view==="list") main.innerHTML = renderList();
+  else main.innerHTML = renderForm();
+
+  attachHandlers();
+  if(view==="dashboard") drawChart();
+}
+
+function renderDashboard(){
+  const stats = computeStats();
+  const optBulanStat = ["Semua",...MONTHS].map(m=>`<option value="${m}" ${statBulan===m?"selected":""}>${m==="Semua"?"Semua Bulan":m}</option>`).join("");
+  const totalEstimasiBulan = computeTotalEstimasiForBulan(statBulan);
+  const rows = STATUS_LIST.map(s=>{
+    const count = stats.statusCounts[s]||0;
+    const pct = stats.total ? Math.round(count/stats.total*100) : 0;
+    const c = STATUS_COLORS[s];
+    return `<div class="status-row">
+      <span class="status-badge" style="border-color:${c};color:${c}"><span class="status-dot" style="background:${c}"></span>${s}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c}"></div></div>
+      <div class="count-label">${count}</div>
+    </div>`;
+  }).join("");
+
+  return `
+    <div class="page-header">
+      <div>
+        <h1>Dashboard Pengadaan</h1>
+        <p>Ringkasan seluruh pengajuan barang.</p>
+      </div>
+      <button class="btn-dark" id="btnAddDash">+ Pengadaan Baru</button>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card"><div class="icon">▣</div><div class="label">Total Pengadaan</div><div class="value">${stats.total}</div></div>
+      <div class="stat-card"><div class="icon">◧</div><div class="label">Divisi GA</div><div class="value">${stats.ga}</div></div>
+      <div class="stat-card"><div class="icon">◨</div><div class="label">Divisi Purchasing</div><div class="value">${stats.purchasing}</div></div>
+      <div class="stat-card">
+        <div class="icon">$</div>
+        <div class="label" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+          <span>Total Estimasi</span>
+          <select id="statBulanSelect" style="font-size:11px;padding:2px 4px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:2px;">${optBulanStat}</select>
+        </div>
+        <div class="value">${formatRupiah(totalEstimasiBulan)}</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <h2>Status Pengadaan</h2>
+        ${rows}
+      </div>
+      <div class="panel">
+        <h2>Pengadaan &amp; Nilai per Bulan</h2>
+        <div style="height:240px;"><canvas id="monthlyChart"></canvas></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderList(){
+  const filtered = computeFiltered();
+  const optDivisi = ["Semua",...DIVISI_LIST].map(d=>`<option ${filterDivisi===d?"selected":""}>${d}</option>`).join("");
+  const optStatus = ["Semua",...STATUS_LIST].map(s=>`<option ${filterStatus===s?"selected":""}>${s}</option>`).join("");
+  const optBulan = ["Semua",...MONTHS].map(m=>`<option ${filterBulan===m?"selected":""}>${m}</option>`).join("");
+
+  const rowsHtml = filtered.length===0
+    ? `<div class="empty-state">Belum ada data yang cocok. Tambahkan pengadaan baru untuk mulai mengisi daftar.</div>`
+    : `<table>
+        <thead><tr>
+          <th>No. Pengadaan</th><th>Tanggal</th><th>Divisi</th><th>Barang</th><th>Qty</th><th>Estimasi Total</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>
+        ${filtered.map(r=>{
+          const total = (Number(r.qty)||0)*(Number(r.estimasiHarga)||0);
+          const statusOpts = STATUS_LIST.map(s=>`<option value="${s}" ${r.status===s?"selected":""}>${s}</option>`).join("");
+          const actionsHtml = confirmDeleteId===r.id
+            ? `<div class="confirm-del"><span style="color:var(--muted)">Hapus?</span>
+                <button data-confirm-del="${r.id}" style="color:#C1443C">Ya</button>
+                <button data-cancel-del="${r.id}" style="color:var(--muted)">Batal</button></div>`
+            : `<div class="row-actions">
+                <button data-edit="${r.id}" title="Edit">✎</button>
+                <button data-del="${r.id}" title="Hapus">🗑</button>
+               </div>`;
+          return `<tr>
+            <td class="mono">${escapeHtml(r.noPengadaan)}</td>
+            <td>${formatTgl(r.tglPengajuan)}</td>
+            <td>${escapeHtml(r.divisi)}</td>
+            <td>${escapeHtml(r.namaBarang)}<div class="sub-text">${escapeHtml(r.departemen)}</div></td>
+            <td>${r.qty} ${escapeHtml(r.satuan)}</td>
+            <td>${formatRupiah(total)}</td>
+            <td><select class="status-select" data-status-change="${r.id}" style="color:${STATUS_COLORS[r.status]}">${statusOpts}</select></td>
+            <td>${actionsHtml}</td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+      </table>`;
+
+  return `
+    <div class="page-header">
+      <div>
+        <h1>Daftar Pengadaan</h1>
+        <p>${filtered.length} dari data tersimpan</p>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-outline" id="btnExportExcel">⬇ Export Excel</button>
+        <button class="btn-dark" id="btnAddList">+ Tambah</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="search-box">🔍 <input id="searchInput" placeholder="Cari barang, no. pengadaan, supplier..." value="${escapeHtml(search)}"></div>
+      <select class="filter-select" id="filterDivisi">${optDivisi}</select>
+      <select class="filter-select" id="filterStatus">${optStatus}</select>
+      <select class="filter-select" id="filterBulan">${optBulan}</select>
+    </div>
+    <div class="table-wrap">${rowsHtml}</div>
+  `;
+}
+
+function renderForm(){
+  const f = form;
+  const total = (Number(f.qty)||0)*(Number(f.estimasiHarga)||0);
+  const divisiOpts = DIVISI_LIST.map(d=>`<option ${f.divisi===d?"selected":""}>${d}</option>`).join("");
+  const deptOpts = DEPT_LIST.map(d=>`<option ${f.departemen===d?"selected":""}>${d}</option>`).join("");
+  const satuanOpts = SATUAN_LIST.map(s=>`<option ${f.satuan===s?"selected":""}>${s}</option>`).join("");
+  const statusOpts = STATUS_LIST.map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("");
+
+  return `
+    <div style="max-width:760px;">
+      <div class="form-header">
+        <h1>${editingId? "Ubah Pengadaan":"Pengadaan Baru"}</h1>
+        <button id="btnCloseForm">×</button>
+      </div>
+      <form id="pengadaanForm">
+        <div class="section">
+          <h3>Informasi Umum</h3>
+          <div class="field-grid">
+            <label class="field"><span>No. Pengadaan <span class="req">*</span></span><input name="noPengadaan" value="${escapeHtml(f.noPengadaan)}" placeholder="mis. PGD-001" required></label>
+            <label class="field"><span>Tanggal Pengajuan <span class="req">*</span></span><input type="date" name="tglPengajuan" value="${f.tglPengajuan}" required></label>
+            <label class="field"><span>Divisi Pengadaan <span class="req">*</span></span><select name="divisi">${divisiOpts}</select></label>
+            <label class="field"><span>Departemen / User <span class="req">*</span></span><select name="departemen">${deptOpts}</select></label>
+            <label class="field"><span>Keperluan</span><input name="keperluan" value="${escapeHtml(f.keperluan)}" placeholder="mis. Perlengkapan kerja"></label>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Detail Barang</h3>
+          <div class="field-grid">
+            <label class="field"><span>Nama Barang <span class="req">*</span></span><input name="namaBarang" value="${escapeHtml(f.namaBarang)}" required></label>
+            <label class="field"><span>Spesifikasi</span><input name="spesifikasi" value="${escapeHtml(f.spesifikasi)}"></label>
+            <label class="field"><span>Qty <span class="req">*</span></span><input type="number" min="0" name="qty" value="${escapeHtml(f.qty)}" required></label>
+            <label class="field"><span>Satuan</span><select name="satuan">${satuanOpts}</select></label>
+            <label class="field"><span>Estimasi Harga (per satuan)</span><input type="number" min="0" name="estimasiHarga" value="${escapeHtml(f.estimasiHarga)}"></label>
+            <label class="field"><span>Estimasi Total</span><input id="estimasiTotalDisplay" readonly value="${formatRupiah(total)}"></label>
+          </div>
+        </div>
+        <div class="section">
+          <h3>Supplier, Tanggal &amp; Status</h3>
+          <div class="field-grid">
+            <label class="field"><span>Supplier</span><input name="supplier" value="${escapeHtml(f.supplier)}" placeholder="-"></label>
+            <label class="field"><span>Status <span class="req">*</span></span><select name="status">${statusOpts}</select></label>
+            <label class="field"><span>Tanggal PO</span><input type="date" name="tglPO" value="${f.tglPO}"></label>
+            <label class="field"><span>Tanggal Diterima</span><input type="date" name="tglDiterima" value="${f.tglDiterima}"></label>
+            <label class="field"><span>Keterangan</span><input name="keterangan" value="${escapeHtml(f.keterangan)}"></label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-accent">${editingId? "Simpan Perubahan":"Simpan Pengadaan"}</button>
+          <button type="button" class="btn-plain" id="btnCancelForm">Batal</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+// ---------- Chart ----------
+function drawChart(){
+  const canvas = document.getElementById("monthlyChart");
+  if(!canvas || typeof Chart === "undefined") return;
+  const data = computeMonthly();
+  if(chartInstance){ chartInstance.destroy(); }
+  chartInstance = new Chart(canvas, {
+    data: {
+      labels: data.map(d=>d.bulan),
+      datasets: [
+        {
+          type: "bar",
+          label: "Jumlah Pengajuan",
+          data: data.map(d=>d.total),
+          backgroundColor: "#D98A2B",
+          borderRadius: 2,
+          maxBarThickness: 28,
+          yAxisID: "y",
+          order: 2
+        },
+        {
+          type: "line",
+          label: "Nilai Pengajuan (Rp)",
+          data: data.map(d=>d.nilai),
+          borderColor: "#3B6FA0",
+          backgroundColor: "#3B6FA0",
+          pointBackgroundColor: "#3B6FA0",
+          pointRadius: 3,
+          tension: 0.3,
+          yAxisID: "y1",
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, labels:{ color:"#6B7280", font:{size:11}, boxWidth:12 } },
+        tooltip:{
+          backgroundColor:"#fff", titleColor:"#20262E", bodyColor:"#20262E", borderColor:"#D8DCD2", borderWidth:1,
+          callbacks:{
+            label: function(ctx){
+              if(ctx.dataset.yAxisID === "y1"){
+                return "Nilai: " + formatRupiah(ctx.parsed.y);
+              }
+              return "Jumlah: " + ctx.parsed.y + " pengajuan";
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{ color:"#6B7280", font:{size:11} } },
+        y:{
+          beginAtZero:true, position:"left",
+          ticks:{ precision:0, color:"#6B7280", font:{size:11} },
+          grid:{ color:"#D8DCD2" },
+          title:{ display:true, text:"Jumlah", color:"#6B7280", font:{size:10} }
+        },
+        y1:{
+          beginAtZero:true, position:"right",
+          ticks:{ color:"#B76F1B", font:{size:10}, callback: v => formatRupiahShort(v) },
+          grid:{ display:false },
+          title:{ display:true, text:"Nilai (Rp)", color:"#B76F1B", font:{size:10} }
+        }
+      }
+    }
+  });
+}
+
+function exportToExcel(){
+  if(typeof XLSX === "undefined"){
+    alert("Library Excel belum siap, coba lagi sebentar.");
+    return;
+  }
+  const data = computeFiltered();
+  if(data.length === 0){
+    alert("Tidak ada data untuk diekspor.");
+    return;
+  }
+  const rows = data.map(r=>({
+    "No. Pengadaan": r.noPengadaan,
+    "Tanggal Pengajuan": formatTgl(r.tglPengajuan),
+    "Divisi": r.divisi,
+    "Departemen": r.departemen,
+    "Keperluan": r.keperluan,
+    "Nama Barang": r.namaBarang,
+    "Spesifikasi": r.spesifikasi,
+    "Qty": Number(r.qty)||0,
+    "Satuan": r.satuan,
+    "Estimasi Harga Satuan": Number(r.estimasiHarga)||0,
+    "Estimasi Total": (Number(r.qty)||0)*(Number(r.estimasiHarga)||0),
+    "Supplier": r.supplier,
+    "Status": r.status,
+    "Tanggal PO": formatTgl(r.tglPO),
+    "Tanggal Diterima": formatTgl(r.tglDiterima),
+    "Keterangan": r.keterangan
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [
+    {wch:14},{wch:14},{wch:12},{wch:14},{wch:20},{wch:22},{wch:22},
+    {wch:6},{wch:8},{wch:18},{wch:16},{wch:18},{wch:16},{wch:14},{wch:14},{wch:24}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Pengadaan");
+  const tanggal = todayISO();
+  XLSX.writeFile(wb, `pengadaan-barang-${tanggal}.xlsx`);
+}
+
+// ---------- Event handlers ----------
+function attachHandlers(){
+  const btnAddDash = document.getElementById("btnAddDash");
+  if(btnAddDash) btnAddDash.onclick = openNewForm;
+  const btnAddList = document.getElementById("btnAddList");
+  if(btnAddList) btnAddList.onclick = openNewForm;
+
+  if(view==="dashboard"){
+    const statBulanSelect = document.getElementById("statBulanSelect");
+    if(statBulanSelect) statBulanSelect.onchange = (e)=>{ statBulan = e.target.value; render(); };
+  }
+
+  if(view==="list"){
+    const searchInput = document.getElementById("searchInput");
+    if(searchInput){
+      searchInput.oninput = (e)=>{ search = e.target.value; renderListOnly(); };
+      // keep focus after re-render
+      searchInput.focus();
+      searchInput.selectionStart = searchInput.selectionEnd = searchInput.value.length;
+    }
+    const fd = document.getElementById("filterDivisi");
+    if(fd) fd.onchange = (e)=>{ filterDivisi = e.target.value; render(); };
+    const fs = document.getElementById("filterStatus");
+    if(fs) fs.onchange = (e)=>{ filterStatus = e.target.value; render(); };
+    const fb = document.getElementById("filterBulan");
+    if(fb) fb.onchange = (e)=>{ filterBulan = e.target.value; render(); };
+    const btnExport = document.getElementById("btnExportExcel");
+    if(btnExport) btnExport.onclick = exportToExcel;
+
+    document.querySelectorAll("[data-edit]").forEach(b=> b.onclick = ()=> openEditForm(b.dataset.edit));
+    document.querySelectorAll("[data-del]").forEach(b=> b.onclick = ()=> { confirmDeleteId = b.dataset.del; render(); });
+    document.querySelectorAll("[data-confirm-del]").forEach(b=> b.onclick = ()=>{
+      records = records.filter(r=>r.id!==b.dataset.confirmDel);
+      persist();
+      confirmDeleteId = null;
+      render();
+    });
+    document.querySelectorAll("[data-cancel-del]").forEach(b=> b.onclick = ()=>{ confirmDeleteId=null; render(); });
+    document.querySelectorAll("[data-status-change]").forEach(sel=>{
+      sel.onchange = (e)=>{
+        const rec = records.find(r=>r.id===sel.dataset.statusChange);
+        if(rec){ rec.status = e.target.value; persist(); render(); }
+      };
+    });
+  }
+
+  if(view==="form"){
+    const f = document.getElementById("pengadaanForm");
+    const closeBtn = document.getElementById("btnCloseForm");
+    const cancelBtn = document.getElementById("btnCancelForm");
+    if(closeBtn) closeBtn.onclick = ()=> setView("list");
+    if(cancelBtn) cancelBtn.onclick = ()=> setView("list");
+
+    function syncFormFromDOM(){
+      const fd = new FormData(f);
+      for(const [k,v] of fd.entries()) form[k]=v;
+    }
+    function updateTotalDisplay(){
+      const total = (Number(f.elements["qty"].value)||0) * (Number(f.elements["estimasiHarga"].value)||0);
+      const totalEl = document.getElementById("estimasiTotalDisplay");
+      if(totalEl) totalEl.value = formatRupiah(total);
+    }
+    if(f.elements["qty"]) f.elements["qty"].oninput = ()=>{ syncFormFromDOM(); updateTotalDisplay(); };
+    if(f.elements["estimasiHarga"]) f.elements["estimasiHarga"].oninput = ()=>{ syncFormFromDOM(); updateTotalDisplay(); };
+
+    f.onsubmit = (e)=>{
+      e.preventDefault();
+      const fd = new FormData(f);
+      const updated = {...form};
+      for(const [k,v] of fd.entries()) updated[k]=v;
+      if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || !updated.qty || !updated.tglPengajuan) return;
+      updated.qty = Number(updated.qty)||0;
+      updated.estimasiHarga = Number(updated.estimasiHarga)||0;
+
+      const idx = records.findIndex(r=>r.id===updated.id);
+      if(idx>=0) records[idx]=updated; else records.unshift(updated);
+      records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+      persist();
+      setView("list");
+    };
+  }
+}
+
+function renderListOnly(){
+  // re-render just the list without losing search focus is tricky with full re-render,
+  // so we do a full render but restore focus/cursor for search.
+  const active = document.activeElement;
+  const wasSearch = active && active.id === "searchInput";
+  const cursorPos = wasSearch ? active.selectionStart : null;
+  render();
+  if(wasSearch){
+    const el = document.getElementById("searchInput");
+    if(el){ el.focus(); el.selectionStart = el.selectionEnd = cursorPos; }
+  }
+}
+
+// ---------- Nav wiring ----------
+document.querySelectorAll(".nav button").forEach(b=>{
+  b.addEventListener("click", ()=> setView(b.dataset.view));
+});
+document.getElementById("btnAddSidebar").addEventListener("click", openNewForm);
+document.getElementById("themeToggle").addEventListener("click", toggleTheme);
+
+// ---------- Init ----------
+initTheme();
+loadRecords();
+render();
+</script>
+</body>
+</html>
