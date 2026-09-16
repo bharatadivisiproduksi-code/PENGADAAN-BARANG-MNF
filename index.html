@@ -217,7 +217,9 @@ async function loadRecordsOnline(silent=false){
     records = Array.isArray(data.records) ? data.records : [];
     records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
     if(!silent) showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
-    render();
+    // Jangan render ulang kalau user sedang mengisi form, supaya input tidak hilang.
+    if(view !== "form") render();
+    else document.getElementById("recordCountLabel").textContent = records.length;
   }catch(e){
     console.error(e);
     showSyncStatus("Gagal sinkron: " + e.message, true);
@@ -225,7 +227,6 @@ async function loadRecordsOnline(silent=false){
     isSyncing = false;
   }
 }
-
 async function saveRecordOnline(record){
   if(!onlineMode()){
     const idx = records.findIndex(r=>r.id===record.id);
