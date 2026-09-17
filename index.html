@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Manufakture - Pengadaan Barang</title>
+<title>Manufacture - Pengadaan Barang</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -146,7 +146,7 @@
     </nav>
     <button class="add-btn" id="btnAddSidebar">+ Tambah Pengadaan</button>
     <button class="theme-row" id="themeToggle" type="button" aria-label="Ganti mode tampilan">
-      <span id="themeLabel">Mode Gelap</span>
+      <span id="themeLabel">Petengan</span>
       <span class="switch"><span class="knob"></span></span>
     </button>
     <div class="sidebar-footer">
@@ -211,7 +211,7 @@ async function loadRecordsOnline(silent=false){
   }
   if(isSyncing) return;
   isSyncing = true;
-  if(!silent) showSyncStatus("Memuat data online...");
+  if(!silent) showSyncStatus("Sabar Lagi Mikir Bree...");
   try{
     const data = await apiRequest({action:"list"});
     records = Array.isArray(data.records) ? data.records : [];
@@ -235,10 +235,10 @@ async function saveRecordOnline(record){
     persist();
     return;
   }
-  showSyncStatus("Menyimpan...");
+  showSyncStatus("Wis Aman Breee...");
   await apiRequest({action:"save", record});
   await loadRecordsOnline(true);
-  showSyncStatus("✓ Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
+  showSyncStatus("✓ Wis Tek Simpen SUU • " + new Date().toLocaleTimeString("id-ID"));
 }
 
 async function deleteRecordOnline(id){
@@ -250,7 +250,7 @@ async function deleteRecordOnline(id){
   showSyncStatus("Menghapus...");
   await apiRequest({action:"delete", id});
   await loadRecordsOnline(true);
-  showSyncStatus("✓ Terhapus • " + new Date().toLocaleTimeString("id-ID"));
+  showSyncStatus("✓ Makane Mikir • " + new Date().toLocaleTimeString("id-ID"));
 }
 
 async function updateStatusOnline(id, status){
@@ -262,16 +262,22 @@ async function updateStatusOnline(id, status){
     persist();
     return;
   }
-  showSyncStatus("Memperbarui status...");
+  showSyncStatus("Sabar Cuk...");
   await apiRequest({action:"save", record:updated});
   await loadRecordsOnline(true);
-  showSyncStatus("✓ Status diperbarui • " + new Date().toLocaleTimeString("id-ID"));
+  showSyncStatus("✓ Wis Blok • " + new Date().toLocaleTimeString("id-ID"));
 }
 
 function startAutoSync(){
   if(!onlineMode()) return;
   if(syncTimer) clearInterval(syncTimer);
   syncTimer = setInterval(()=>loadRecordsOnline(true), SYNC_INTERVAL_MS);
+
+  // Sinkron langsung begitu tab/aplikasi difokuskan lagi (mis. balik dari app lain di HP)
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "visible") loadRecordsOnline(true);
+  });
+  window.addEventListener("focus", ()=> loadRecordsOnline(true));
 }
 
 // ---------- Theme ----------
