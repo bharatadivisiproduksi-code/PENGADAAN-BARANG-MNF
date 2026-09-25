@@ -160,14 +160,13 @@
 
 <script>
 // ---------- Constants ----------
-const STATUS_LIST = ["Pengajuan","Disetujui","PO","Proses Pengadaan","Diterima","Selesai","Batal"];
+const STATUS_LIST = ["Pengajuan","Disetujui","Diterima","Selesai","Batal"];
 const STATUS_COLORS = {
-  "Pengajuan":"#5B6B7A","Disetujui":"#3B6FA0","PO":"#B98328","Proses Pengadaan":"#D98A2B",
-  "Diterima":"#2F8F82","Selesai":"#3F7D58","Batal":"#C1443C"
+  "Pengajuan":"#5B6B7A","Disetujui":"#3B6FA0","Diterima":"#2F8F82","Selesai":"#3F7D58","Batal":"#C1443C"
 };
 const DIVISI_LIST = ["GA","Purchasing"];
 const SATUAN_LIST = ["Pcs","Unit","Box","Botol","Kg","Liter","Meter","Set","Dus"];
-const DEPT_LIST = ["Produksi","HRD","Finance","Marketing","IT","GA","Purchasing","Lainnya"];
+const DEPT_LIST = ["Produksi"];
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const STORAGE_KEY = "pengadaan_barang_records_v1";
 const THEME_KEY = "pengadaan_theme_v1";
@@ -176,7 +175,7 @@ const THEME_KEY = "pengadaan_theme_v1";
 // Paste your Google Apps Script Web App URL here after deployment.
 // Example: https://script.google.com/macros/s/XXXXXXXX/exec
 const API_URL = "https://script.google.com/macros/s/AKfycby8pg4rfD_9EjbmTv6-s2a1szocnB7VhQrB7VWJOqQ-M35Q3ZA-ph3lKU2beEx34miKwA/exec";
-const SYNC_INTERVAL_MS = 30000;
+const SYNC_INTERVAL_MS = 3600000;
 let syncTimer = null;
 let isSyncing = false;
 
