@@ -183,17 +183,33 @@ function onlineMode(){
   return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(API_URL);
 }
 
-async function apiRequest(payload){
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+async function apiRequest(payload, attempt=0){
   if(!onlineMode()) throw new Error("API_URL belum diisi.");
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {"Content-Type":"text/plain;charset=utf-8"},
-    body: JSON.stringify(payload)
-  });
-  if(!response.ok) throw new Error("Server API gagal: HTTP " + response.status);
-  const data = await response.json();
-  if(!data.ok) throw new Error(data.error || "API mengembalikan error.");
-  return data;
+  // Batas waktu 20 detik + coba ulang otomatis (jaringan baru bangun dari sleep, dsb.)
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 20000);
+  try{
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
+    if(!response.ok) throw new Error("Server API gagal: HTTP " + response.status);
+    const data = await response.json();
+    if(!data.ok){ const err = new Error(data.error || "API mengembalikan error."); err.noRetry = true; throw err; }
+    return data;
+  }catch(e){
+    if(!e.noRetry && attempt < 2){
+      await sleep(1500 * (attempt + 1));
+      return apiRequest(payload, attempt + 1);
+    }
+    if(e.name === "AbortError") throw new Error("Koneksi timeout, coba lagi.");
+    throw e;
+  }finally{
+    clearTimeout(timer);
+  }
 }
 
 function showSyncStatus(message, isError=false){
@@ -217,13 +233,15 @@ async function loadRecordsOnline(silent=false){
     records = Array.isArray(data.records) ? data.records : [];
     records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
     const changed = before !== JSON.stringify(records);
-    if(!silent) showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
+    showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
     // Jangan render ulang kalau data tidak berubah (sinkron otomatis) atau user sedang mengisi form.
     if(view !== "form"){ if(changed || !silent || !document.getElementById("mainContent").children.length) render(); }
     else document.getElementById("recordCountLabel").textContent = records.length;
   }catch(e){
     console.error(e);
-    showSyncStatus("Gagal sinkron: " + e.message, true);
+    // Sinkron otomatis yang gagal tidak dianggap error: data di layar tetap aman, nanti dicoba lagi.
+    if(silent) showSyncStatus("Sinkron tertunda, mencoba lagi...");
+    else showSyncStatus("Gagal sinkron: " + e.message, true);
   }finally{
     isSyncing = false;
   }
@@ -279,6 +297,7 @@ function startAutoSync(){
     if(document.visibilityState === "visible") loadRecordsOnline(true);
   });
   window.addEventListener("focus", ()=> loadRecordsOnline(true));
+  window.addEventListener("online", ()=> loadRecordsOnline(true));
 }
 
 // ---------- Theme ----------
