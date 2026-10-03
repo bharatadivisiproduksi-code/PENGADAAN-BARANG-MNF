@@ -243,7 +243,7 @@ async function saveRecordOnline(record){
     persist();
     return;
   }
-  showSyncStatus("Wis Aman Breee...");
+  showSyncStatus("sabar anjing...");
   await apiRequest({action:"save", record});
   await loadRecordsOnline(true);
   showSyncStatus("✓ Wis Tek Simpen SUU • " + new Date().toLocaleTimeString("id-ID"));
