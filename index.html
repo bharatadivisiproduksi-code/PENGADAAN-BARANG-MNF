@@ -213,11 +213,13 @@ async function loadRecordsOnline(silent=false){
   if(!silent) showSyncStatus("Sabar Lagi Mikir Bree...");
   try{
     const data = await apiRequest({action:"list"});
+    const before = JSON.stringify(records);
     records = Array.isArray(data.records) ? data.records : [];
     records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+    const changed = before !== JSON.stringify(records);
     if(!silent) showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
-    // Jangan render ulang kalau user sedang mengisi form, supaya input tidak hilang.
-    if(view !== "form") render();
+    // Jangan render ulang kalau data tidak berubah (sinkron otomatis) atau user sedang mengisi form.
+    if(view !== "form"){ if(changed || !silent || !document.getElementById("mainContent").children.length) render(); }
     else document.getElementById("recordCountLabel").textContent = records.length;
   }catch(e){
     console.error(e);
@@ -483,6 +485,9 @@ function openEditForm(id){
 function render(){
   document.getElementById("recordCountLabel").textContent = records.length;
   const main = document.getElementById("mainContent");
+  // Jaga posisi scroll: kunci tinggi sementara supaya halaman tidak memendek lalu terlempar ke atas
+  const keepY = window.scrollY, keepTop = main.scrollTop, keepH = main.offsetHeight;
+  if(keepH) main.style.minHeight = keepH + "px";
   if(view==="dashboard") main.innerHTML = renderDashboard();
   else if(view==="list") main.innerHTML = renderList();
   else main.innerHTML = renderForm();
@@ -494,11 +499,13 @@ function render(){
   if(view==="dashboard") drawChart();
   if(pendingScrollY){
     const y = pendingScrollY; pendingScrollY = 0;
-    requestAnimationFrame(()=>{
-      window.scrollTo(0, y);
-      main.scrollTop = y;
-    });
+    window.scrollTo(0, y); main.scrollTop = y;
+    requestAnimationFrame(()=>{ window.scrollTo(0, y); main.scrollTop = y; });
+  }else if(keepY || keepTop){
+    window.scrollTo(0, keepY); main.scrollTop = keepTop;
+    requestAnimationFrame(()=>{ window.scrollTo(0, keepY); main.scrollTop = keepTop; });
   }
+  setTimeout(()=>{ main.style.minHeight = ""; }, 300);
   saveUI();
 }
 
