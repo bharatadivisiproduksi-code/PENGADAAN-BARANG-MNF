@@ -309,6 +309,38 @@ let statBulan = "Semua";
 let confirmDeleteId = null;
 let chartInstance = null;
 
+// ---------- Ingat posisi saat refresh ----------
+const UI_KEY = "pengadaan_ui_v1";
+let pendingScrollY = 0;
+(function restoreUI(){
+  try{
+    const u = JSON.parse(sessionStorage.getItem(UI_KEY) || "null");
+    if(!u) return;
+    if(u.view === "dashboard" || u.view === "list") view = u.view;
+    if(u.filterDivisi) filterDivisi = u.filterDivisi;
+    if(u.filterStatus) filterStatus = u.filterStatus;
+    if(u.filterBulan)  filterBulan  = u.filterBulan;
+    if(u.statBulan)    statBulan    = u.statBulan;
+    if(typeof u.search === "string") search = u.search;
+    pendingScrollY = u.scrollY || 0;
+  }catch(e){}
+})();
+function saveUI(){
+  try{
+    // halaman form tidak disimpan (draft isian), jadi dianggap kembali ke daftar
+    const v = (view === "form") ? "list" : view;
+    const main = document.getElementById("mainContent");
+    const y = pendingScrollY || Math.max(window.scrollY || 0, main ? main.scrollTop : 0);
+    sessionStorage.setItem(UI_KEY, JSON.stringify({
+      view:v, filterDivisi, filterStatus, filterBulan, statBulan, search, scrollY:y
+    }));
+  }catch(e){}
+}
+window.addEventListener("scroll", saveUI, {passive:true});
+window.addEventListener("pagehide", saveUI);
+window.addEventListener("beforeunload", saveUI);
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") saveUI(); });
+
 // ---------- Storage ----------
 function loadRecords(){
   try{
@@ -455,8 +487,19 @@ function render(){
   else if(view==="list") main.innerHTML = renderList();
   else main.innerHTML = renderForm();
 
+  document.querySelectorAll(".nav button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.view===view);
+  });
   attachHandlers();
   if(view==="dashboard") drawChart();
+  if(pendingScrollY){
+    const y = pendingScrollY; pendingScrollY = 0;
+    requestAnimationFrame(()=>{
+      window.scrollTo(0, y);
+      main.scrollTop = y;
+    });
+  }
+  saveUI();
 }
 
 function renderDashboard(){
