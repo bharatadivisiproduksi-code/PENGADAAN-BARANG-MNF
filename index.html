@@ -115,9 +115,18 @@
   .row-actions{display:flex;align-items:center;gap:14px;}
   .row-actions button{background:none;border:none;color:var(--muted);font-size:13px;padding:0;}
   .status-select{border:none;background:transparent;font-size:12px;}
-  .confirm-del{display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap;}
-  .confirm-del button{border:none;background:none;padding:0;}
-
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,13,17,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:1000;}
+  .modal-overlay[hidden]{display:none;}
+  .modal{width:100%;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:28px 24px 22px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.35);animation:modalIn .15s ease;}
+  @keyframes modalIn{from{opacity:0;transform:translateY(8px) scale(.97);}to{opacity:1;transform:none;}}
+  .modal-icon{width:44px;height:44px;margin:0 auto 14px;border-radius:50%;background:#C1443C;color:#fff;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+  .modal h3{margin:0 0 8px;font-size:17px;letter-spacing:.02em;}
+  .modal p{margin:0 0 22px;color:var(--muted);font-size:13px;min-height:1em;word-break:break-word;}
+  .modal-actions{display:flex;gap:10px;}
+  .modal-actions button{flex:1;padding:11px 12px;font-size:14px;border-radius:8px;border:1px solid var(--line);}
+  .modal-no{background:var(--paper);color:var(--ink);}
+  .modal-yes{background:#C1443C;color:#fff;border-color:#C1443C !important;}
+  .modal-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   form{display:flex;flex-direction:column;gap:20px;max-width:760px;}
   .form-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
   .form-header button{background:none;border:none;font-size:20px;color:var(--muted);}
@@ -164,6 +173,18 @@
   </aside>
 
   <main class="main" id="mainContent"></main>
+</div>
+
+<div class="modal-overlay" id="confirmModal" hidden>
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
+    <div class="modal-icon">!</div>
+    <h3 id="confirmTitle">YAKIN INGIN DIHAPUS?</h3>
+    <p id="confirmDesc"></p>
+    <div class="modal-actions">
+      <button type="button" class="modal-no" id="confirmNo">Tidak</button>
+      <button type="button" class="modal-yes" id="confirmYes">Ya</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -271,15 +292,28 @@ async function saveRecordOnline(record){
 }
 
 async function deleteRecordOnline(id){
+  const idx = records.findIndex(r=>r.id===id);
+  if(idx < 0) return;
+  const removed = records[idx];
+  // Hilang dari layar seketika; penghapusan di server berjalan di latar belakang.
+  records.splice(idx, 1);
   if(!onlineMode()){
-    records = records.filter(r=>r.id!==id);
     persist();
     return;
   }
+  pendingWrites++;
   showSyncStatus("Menghapus...");
-  await apiRequest({action:"delete", id});
-  await loadRecordsOnline(true);
-  showSyncStatus("✓ Makane Mikir • " + new Date().toLocaleTimeString("id-ID"));
+  try{
+    await apiRequest({action:"delete", id});
+    showSyncStatus("✓ Terhapus • " + new Date().toLocaleTimeString("id-ID"));
+  }catch(e){
+    records.splice(idx, 0, removed);   // gagal: kembalikan datanya
+    if(view !== "form") render();
+    showSyncStatus("Gagal menghapus", true);
+    throw e;
+  }finally{
+    pendingWrites--;
+  }
 }
 
 let pendingWrites = 0;
@@ -348,7 +382,6 @@ let filterDivisi = "Semua";
 let filterStatus = "Semua";
 let filterBulan = "Semua";
 let statBulan = "Semua";
-let confirmDeleteId = null;
 let chartInstance = null;
 
 // ---------- Ingat posisi saat refresh ----------
@@ -641,11 +674,7 @@ function renderList(){
         ${filtered.map(r=>{
           const total = (Number(r.qty)||0)*(Number(r.estimasiHarga)||0);
           const statusOpts = STATUS_LIST.map(s=>`<option value="${s}" ${r.status===s?"selected":""}>${s}</option>`).join("");
-          const actionsHtml = confirmDeleteId===r.id
-            ? `<div class="confirm-del"><span style="color:var(--muted)">Hapus?</span>
-                <button data-confirm-del="${r.id}" style="color:#C1443C">Ya</button>
-                <button data-cancel-del="${r.id}" style="color:var(--muted)">Batal</button></div>`
-            : `<div class="row-actions">
+          const actionsHtml = `<div class="row-actions">
                 <button data-edit="${r.id}" title="Edit">✎</button>
                 <button data-del="${r.id}" title="Hapus">🗑</button>
                </div>`;
@@ -879,14 +908,7 @@ function attachHandlers(){
     if(btnExport) btnExport.onclick = exportToExcel;
 
     document.querySelectorAll("[data-edit]").forEach(b=> b.onclick = ()=> openEditForm(b.dataset.edit));
-    document.querySelectorAll("[data-del]").forEach(b=> b.onclick = ()=> { confirmDeleteId = b.dataset.del; render(); });
-    document.querySelectorAll("[data-confirm-del]").forEach(b=> b.onclick = ()=>{
-      const id = b.dataset.confirmDel;
-      deleteRecordOnline(id).catch(e=>alert("Gagal menghapus: "+e.message));
-      confirmDeleteId = null;
-      render();
-    });
-    document.querySelectorAll("[data-cancel-del]").forEach(b=> b.onclick = ()=>{ confirmDeleteId=null; render(); });
+    document.querySelectorAll("[data-del]").forEach(b=> b.onclick = ()=> askDelete(b.dataset.del));
     document.querySelectorAll("[data-status-change]").forEach(sel=>{
       sel.onchange = (e)=>{
         const rec = records.find(r=>r.id===sel.dataset.statusChange);
@@ -946,6 +968,37 @@ function renderListOnly(){
     if(el){ el.focus(); el.selectionStart = el.selectionEnd = cursorPos; }
   }
 }
+
+// ---------- Popup konfirmasi hapus ----------
+let deleteTargetId = null;
+function askDelete(id){
+  const r = records.find(x=>x.id===id);
+  if(!r) return;
+  deleteTargetId = id;
+  document.getElementById("confirmDesc").textContent =
+    [r.noPengadaan, r.namaBarang].filter(Boolean).join(" — ");
+  const m = document.getElementById("confirmModal");
+  m.hidden = false;
+  document.getElementById("confirmNo").focus();   // default aman: Tidak
+}
+function closeDeleteModal(){
+  deleteTargetId = null;
+  document.getElementById("confirmModal").hidden = true;
+}
+document.getElementById("confirmNo").addEventListener("click", closeDeleteModal);
+document.getElementById("confirmYes").addEventListener("click", ()=>{
+  const id = deleteTargetId;
+  closeDeleteModal();
+  if(!id) return;
+  deleteRecordOnline(id).catch(e=>alert("Gagal menghapus: "+e.message));
+  if(view !== "form") render();
+});
+document.getElementById("confirmModal").addEventListener("click", (e)=>{
+  if(e.target.id === "confirmModal") closeDeleteModal();   // klik di luar kotak = Tidak
+});
+document.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape" && !document.getElementById("confirmModal").hidden) closeDeleteModal();
+});
 
 // ---------- Nav wiring ----------
 document.querySelectorAll(".nav button").forEach(b=>{
