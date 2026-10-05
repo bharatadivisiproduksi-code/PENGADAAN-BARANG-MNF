@@ -438,7 +438,7 @@ function computeStats(){
   const total = records.length;
   const ga = records.filter(r=>r.divisi==="GA").length;
   const purchasing = records.filter(r=>r.divisi==="Purchasing").length;
-  const totalNilai = records.reduce((s,r)=> s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0), 0);
+  const totalNilai = records.filter(r=>r.status!=="Batal").reduce((s,r)=> s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0), 0);
   const statusCounts = {};
   STATUS_LIST.forEach(s=>statusCounts[s]=0);
   records.forEach(r=>{ if(statusCounts[r.status]!==undefined) statusCounts[r.status]++; });
@@ -456,12 +456,15 @@ function computeMonthly(){
   return counts;
 }
 function computeTotalEstimasiForBulan(bulan){
+  // Pengadaan berstatus "Batal" tidak dihitung ke total estimasi
+  const aktif = records.filter(r=> r.status !== "Batal");
+  const nilai = r => (Number(r.qty)||0)*(Number(r.estimasiHarga)||0);
   if(bulan==="Semua"){
-    return records.reduce((s,r)=> s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0), 0);
+    return aktif.reduce((s,r)=> s + nilai(r), 0);
   }
   const idx = MONTHS.indexOf(bulan);
-  return records.reduce((s,r)=>{
-    if(monthIndexFromISO(r.tglPengajuan)===idx) return s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0);
+  return aktif.reduce((s,r)=>{
+    if(monthIndexFromISO(r.tglPengajuan)===idx) return s + nilai(r);
     return s;
   },0);
 }
