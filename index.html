@@ -359,8 +359,10 @@ async function deleteRecordOnline(id){
   const removed = records[idx];
   // Hilang dari layar seketika; penghapusan di server berjalan di latar belakang.
   records.splice(idx, 1);
+  saveStart(false, "SEDANG MENGHAPUS...");
   if(!onlineMode()){
     persist();
+    saveDone("TERHAPUS BREE");
     return;
   }
   pendingWrites++;
@@ -368,7 +370,9 @@ async function deleteRecordOnline(id){
   try{
     await apiRequest({action:"delete", id});
     showSyncStatus("✓ Terhapus • " + new Date().toLocaleTimeString("id-ID"));
+    saveDone("TERHAPUS BREE");
   }catch(e){
+    saveFail("GAGAL MENGHAPUS");
     records.splice(idx, 0, removed);   // gagal: kembalikan datanya
     if(view !== "form") render();
     showSyncStatus("Gagal menghapus", true);
@@ -1116,16 +1120,16 @@ function saveHide(){
   layer.classList.add("out");
   setTimeout(()=>{ if(layer.classList.contains("out")) layer.hidden = true; }, 260);
 }
-function saveStart(center){
+function saveStart(center, text){
   if(savingCount === 0) saveMode = center ? "center" : "toast";
   else if(center) saveMode = "center";
   savingCount++;
-  saveShow("saving", "SEDANG MENYIMPAN...");
+  saveShow("saving", text || "SEDANG MENYIMPAN...");
 }
-function saveDone(){
+function saveDone(text){
   savingCount = Math.max(0, savingCount - 1);
   if(savingCount > 0) return;
-  saveShow("saved", "TERSIMPAN BREE");
+  saveShow("saved", text || "TERSIMPAN BREE");
   saveHideTimer = setTimeout(saveHide, 1400);
 }
 function saveFail(msg){
