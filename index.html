@@ -118,6 +118,8 @@
   .row-actions{display:flex;align-items:center;gap:14px;}
   .row-actions button{background:none;border:none;color:var(--muted);font-size:13px;padding:0;}
   .status-select{border:none;background:transparent;font-size:12px;}
+  tr.row-flash td{animation:rowFlash 1.6s ease;}
+  @keyframes rowFlash{from{background:rgba(217,138,43,.38);}to{background:transparent;}}
   .load-more{padding:18px;text-align:center;color:var(--muted);font-size:13px;}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -315,7 +317,6 @@ async function loadRecordsOnline(silent=false){
     if(silent && pendingWrites > 0) return;   // ada simpanan yang belum selesai: jangan timpa
     const before = JSON.stringify(records);
     records = Array.isArray(data.records) ? data.records.map(normRecord) : [];
-    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
     const changed = before !== JSON.stringify(records);
     showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
     // Jangan render ulang kalau data tidak berubah (sinkron otomatis) atau user sedang mengisi form.
@@ -333,8 +334,7 @@ async function loadRecordsOnline(silent=false){
 async function saveRecordOnline(record){
   if(!onlineMode()){
     const idx = records.findIndex(r=>r.id===record.id);
-    if(idx>=0) records[idx]=record; else records.unshift(record);
-    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+    if(idx>=0) records[idx]=record; else records.push(record);
     persist();
     return;
   }
@@ -345,8 +345,7 @@ async function saveRecordOnline(record){
     await apiRequest({action:"save", record: rec});
     // Cukup perbarui data lokal; tidak perlu mengunduh ulang seluruh daftar (hemat satu permintaan ke server).
     const idx = records.findIndex(r=>r.id===rec.id);
-    if(idx>=0) records[idx]=rec; else records.unshift(rec);
-    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+    if(idx>=0) records[idx]=rec; else records.push(rec);
     showSyncStatus("✓ Wis Tek Simpen SUU • " + new Date().toLocaleTimeString("id-ID"));
   }finally{
     pendingWrites--;
@@ -499,7 +498,6 @@ function loadRecords(){
   }catch(e){
     records = [];
   }
-  records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
 }
 function persist(){
   try{
@@ -1080,7 +1078,7 @@ function attachHandlers(){
 
       saveStart(true);      // layar terkunci + "SEDANG MENYIMPAN..." selama menunggu server
       saveRecordOnline(updated)
-        .then(()=>{ saveDone(); setView("list"); })
+        .then(()=>{ saveDone(); setView("list"); if(!editingId) revealRecord(updated.id); })
         .catch(e=>{ saveFail(); alert("Gagal menyimpan: "+e.message); });
     };
   }
@@ -1097,6 +1095,24 @@ function renderListOnly(){
     const el = document.getElementById("searchInput");
     if(el){ el.focus(); el.selectionStart = el.selectionEnd = cursorPos; }
   }
+}
+
+// Data baru ada di urutan paling akhir (urutan input): pastikan barisnya ikut dimuat lalu gulir ke sana.
+function revealRecord(id){
+  const idx = records.findIndex(r=>r.id===id);
+  if(idx < 0 || view !== "list") return;
+  if(idx >= visibleCount){
+    visibleCount = Math.ceil((idx + 1) / PAGE_SIZE) * PAGE_SIZE;
+    render();
+  }
+  requestAnimationFrame(()=>{
+    const b = document.querySelector(`[data-edit="${id}"]`);
+    const tr = b && b.closest("tr");
+    if(!tr) return;
+    tr.scrollIntoView({block:"center", behavior:"smooth"});
+    tr.classList.add("row-flash");
+    setTimeout(()=>tr.classList.remove("row-flash"), 1800);
+  });
 }
 
 // ---------- Animasi "sedang menyimpan" / "tersimpan" ----------
@@ -1179,7 +1195,6 @@ async function saveEditOptimistic(updated){
   const prev = records[idx];
   updated = normRecord(updated);
   records[idx] = updated;
-  records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
   if(view !== "form") render();
   saveStart(false);
   if(!onlineMode()){ persist(); saveDone(); return; }
@@ -1193,7 +1208,6 @@ async function saveEditOptimistic(updated){
     saveFail();
     const i = records.findIndex(r=>r.id===updated.id);
     if(i >= 0) records[i] = prev;          // gagal: kembalikan data lama
-    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
     if(view !== "form") render();
     showSyncStatus("Gagal menyimpan", true);
     throw e;
