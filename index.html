@@ -71,7 +71,7 @@
   html[data-theme="dark"] .switch .knob svg path{fill:#F4E9D8;}
   .theme-toggle:focus-visible .switch{outline:2px solid var(--accent);outline-offset:3px;}
 
-  .main{flex:1;min-width:0;padding:32px;overflow-y:auto;}
+  .main{flex:1;min-width:0;padding:32px;}
 
   .page-header{display:flex;align-items:center;justify-content:between;justify-content:space-between;margin-bottom:24px;}
   .page-header h1{font-size:24px;}
@@ -99,7 +99,7 @@
   .bar-fill{height:100%;}
   .count-label{width:26px;text-align:right;color:var(--muted);}
 
-  .filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .filters{display:flex;flex-wrap:wrap;gap:12px;margin:0 -32px 16px;padding:12px 32px;position:sticky;top:0;z-index:15;background:var(--paper);}
   .search-box{display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--paper);border:1px solid var(--line);min-width:220px;}
   .search-box input{border:none;background:transparent;padding:10px 0;width:100%;outline:none;color:var(--ink);}
   select.filter-select{padding:9px 10px;background:var(--paper);border:1px solid var(--line);color:var(--ink);}
