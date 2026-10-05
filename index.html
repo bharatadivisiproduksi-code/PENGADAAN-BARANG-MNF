@@ -121,6 +121,24 @@
   .load-more{padding:18px;text-align:center;color:var(--muted);font-size:13px;}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  .save-layer{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity .25s ease;}
+  .save-layer[hidden]{display:none;}
+  .save-layer.out{opacity:0;}
+  .save-layer.toast{align-items:flex-end;padding-bottom:28px;}
+  .save-layer.block{background:rgba(10,13,17,.5);pointer-events:auto;}
+  .save-card{display:flex;align-items:center;gap:14px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px 26px;box-shadow:0 14px 40px rgba(0,0,0,.35);animation:savePop .22s ease;}
+  .save-layer.center .save-card{flex-direction:column;gap:12px;padding:28px 40px;min-width:230px;}
+  @keyframes savePop{from{opacity:0;transform:translateY(8px) scale(.94);}to{opacity:1;transform:none;}}
+  .save-text{font-size:14px;font-weight:700;letter-spacing:.06em;}
+  .save-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .save-spinner{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite;}
+  .save-icon svg{width:40px;height:40px;display:block;}
+  .sc-circle{stroke:#3F7D58;stroke-width:3;stroke-dasharray:151;stroke-dashoffset:151;animation:scDraw .5s ease forwards;}
+  .sc-tick{stroke:#3F7D58;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40;animation:scDraw .3s .38s ease forwards;}
+  .sc-x{stroke:#C1443C;stroke-width:4;stroke-linecap:round;}
+  .save-card[data-state="saved"] .save-text{color:#3F7D58;}
+  .save-card[data-state="error"] .save-text{color:#C1443C;}
+  @keyframes scDraw{to{stroke-dashoffset:0;}}
   .modal-overlay{position:fixed;inset:0;background:rgba(10,13,17,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:1000;}
   .modal-overlay[hidden]{display:none;}
   .modal{width:100%;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:28px 24px 22px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.35);animation:modalIn .15s ease;}
@@ -185,6 +203,13 @@
   </aside>
 
   <main class="main" id="mainContent"></main>
+</div>
+
+<div class="save-layer toast" id="saveLayer" hidden aria-live="polite">
+  <div class="save-card" id="saveCard" data-state="saving">
+    <div class="save-icon" id="saveIcon"></div>
+    <div class="save-text" id="saveText"></div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="editModal" hidden>
@@ -313,10 +338,19 @@ async function saveRecordOnline(record){
     persist();
     return;
   }
+  const rec = normRecord(record);
+  pendingWrites++;
   showSyncStatus("sabar anjing...");
-  await apiRequest({action:"save", record: normRecord(record)});
-  await loadRecordsOnline(true);
-  showSyncStatus("✓ Wis Tek Simpen SUU • " + new Date().toLocaleTimeString("id-ID"));
+  try{
+    await apiRequest({action:"save", record: rec});
+    // Cukup perbarui data lokal; tidak perlu mengunduh ulang seluruh daftar (hemat satu permintaan ke server).
+    const idx = records.findIndex(r=>r.id===rec.id);
+    if(idx>=0) records[idx]=rec; else records.unshift(rec);
+    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+    showSyncStatus("✓ Wis Tek Simpen SUU • " + new Date().toLocaleTimeString("id-ID"));
+  }finally{
+    pendingWrites--;
+  }
 }
 
 async function deleteRecordOnline(id){
@@ -351,8 +385,10 @@ async function updateStatusOnline(id, status){
   const prev = rec.status;
   // Tampilan langsung berubah (optimistik), simpan ke server berjalan di latar belakang.
   rec.status = status;
+  saveStart(false);
   if(!onlineMode()){
     persist();
+    saveDone();
     return;
   }
   pendingWrites++;
@@ -360,7 +396,9 @@ async function updateStatusOnline(id, status){
   try{
     await apiRequest({action:"save", record: normRecord({...rec, status})});
     showSyncStatus("✓ Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
+    saveDone();
   }catch(e){
+    saveFail();
     rec.status = prev;           // gagal: kembalikan status lama
     if(view !== "form") render();
     showSyncStatus("Gagal menyimpan status", true);
@@ -1036,9 +1074,10 @@ function attachHandlers(){
       updated.qty = Number(updated.qty)||0;
       updated.estimasiHarga = Number(updated.estimasiHarga)||0;
 
+      saveStart(true);      // layar terkunci + "SEDANG MENYIMPAN..." selama menunggu server
       saveRecordOnline(updated)
-        .then(()=>setView("list"))
-        .catch(e=>alert("Gagal menyimpan: "+e.message));
+        .then(()=>{ saveDone(); setView("list"); })
+        .catch(e=>{ saveFail(); alert("Gagal menyimpan: "+e.message); });
     };
   }
 }
@@ -1054,6 +1093,45 @@ function renderListOnly(){
     const el = document.getElementById("searchInput");
     if(el){ el.focus(); el.selectionStart = el.selectionEnd = cursorPos; }
   }
+}
+
+// ---------- Animasi "sedang menyimpan" / "tersimpan" ----------
+let savingCount = 0, saveHideTimer = null, saveMode = "toast";
+const SAVE_ICONS = {
+  saving: '<div class="save-spinner"></div>',
+  saved:  '<svg viewBox="0 0 52 52" aria-hidden="true"><circle class="sc-circle" cx="26" cy="26" r="24" fill="none"/><path class="sc-tick" fill="none" d="M14 27l8 8 16-17"/></svg>',
+  error:  '<svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24" fill="none" stroke="#C1443C" stroke-width="3"/><path class="sc-x" d="M18 18l16 16M34 18L18 34"/></svg>'
+};
+function saveShow(state, text){
+  const layer = document.getElementById("saveLayer");
+  clearTimeout(saveHideTimer);
+  layer.hidden = false;
+  layer.className = "save-layer " + saveMode + (state==="saving" && saveMode==="center" ? " block" : "");
+  document.getElementById("saveCard").dataset.state = state;
+  document.getElementById("saveIcon").innerHTML = SAVE_ICONS[state];
+  document.getElementById("saveText").textContent = text;
+}
+function saveHide(){
+  const layer = document.getElementById("saveLayer");
+  layer.classList.add("out");
+  setTimeout(()=>{ if(layer.classList.contains("out")) layer.hidden = true; }, 260);
+}
+function saveStart(center){
+  if(savingCount === 0) saveMode = center ? "center" : "toast";
+  else if(center) saveMode = "center";
+  savingCount++;
+  saveShow("saving", "SEDANG MENYIMPAN...");
+}
+function saveDone(){
+  savingCount = Math.max(0, savingCount - 1);
+  if(savingCount > 0) return;
+  saveShow("saved", "TERSIMPAN BREE");
+  saveHideTimer = setTimeout(saveHide, 1400);
+}
+function saveFail(msg){
+  savingCount = Math.max(0, savingCount - 1);
+  saveShow("error", msg || "GAGAL MENYIMPAN");
+  saveHideTimer = setTimeout(saveHide, 2600);
 }
 
 // ---------- Popup ubah pengadaan ----------
@@ -1099,13 +1177,16 @@ async function saveEditOptimistic(updated){
   records[idx] = updated;
   records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
   if(view !== "form") render();
-  if(!onlineMode()){ persist(); return; }
+  saveStart(false);
+  if(!onlineMode()){ persist(); saveDone(); return; }
   pendingWrites++;
   showSyncStatus("Menyimpan...");
   try{
     await apiRequest({action:"save", record: updated});
     showSyncStatus("✓ Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
+    saveDone();
   }catch(e){
+    saveFail();
     const i = records.findIndex(r=>r.id===updated.id);
     if(i >= 0) records[i] = prev;          // gagal: kembalikan data lama
     records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
