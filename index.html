@@ -122,9 +122,15 @@
   .modal-overlay[hidden]{display:none;}
   .modal{width:100%;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:28px 24px 22px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.35);animation:modalIn .15s ease;}
   @keyframes modalIn{from{opacity:0;transform:translateY(8px) scale(.97);}to{opacity:1;transform:none;}}
+  .modal-edit{max-width:680px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain;text-align:left;padding:22px;}
+  .edit-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .edit-head h2{font-size:20px;}
+  .edit-head button{background:none;border:none;font-size:24px;line-height:1;color:var(--muted);padding:2px 8px;}
+  #editForm{max-width:none;}
+  @media (max-width:600px){.field-grid{grid-template-columns:1fr;}}
   .modal-icon{width:44px;height:44px;margin:0 auto 14px;border-radius:50%;background:#C1443C;color:#fff;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;}
-  .modal h3{margin:0 0 8px;font-size:17px;letter-spacing:.02em;}
-  .modal p{margin:0 0 22px;color:var(--muted);font-size:13px;min-height:1em;word-break:break-word;}
+  .modal-confirm h3{margin:0 0 8px;font-size:17px;letter-spacing:.02em;}
+  .modal-confirm p{margin:0 0 22px;color:var(--muted);font-size:13px;min-height:1em;word-break:break-word;}
   .modal-actions{display:flex;gap:10px;}
   .modal-actions button{flex:1;padding:11px 12px;font-size:14px;border-radius:8px;border:1px solid var(--line);}
   .modal-no{background:var(--paper);color:var(--ink);}
@@ -178,8 +184,24 @@
   <main class="main" id="mainContent"></main>
 </div>
 
+<div class="modal-overlay" id="editModal" hidden>
+  <div class="modal modal-edit" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <div class="edit-head">
+      <h2 id="editTitle">Ubah Pengadaan</h2>
+      <button type="button" id="editClose" aria-label="Tutup">×</button>
+    </div>
+    <form id="editForm">
+      <div id="editFields"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn-accent">Simpan Perubahan</button>
+        <button type="button" class="btn-plain" id="editCancel">Batal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="confirmModal" hidden>
-  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
+  <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
     <div class="modal-icon">!</div>
     <h3 id="confirmTitle">YAKIN INGIN DIHAPUS?</h3>
     <p id="confirmDesc"></p>
@@ -577,15 +599,6 @@ function openNewForm(){
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   render();
 }
-function openEditForm(id){
-  const r = records.find(x=>x.id===id);
-  if(!r) return;
-  form = {...emptyForm(), ...r};
-  editingId = id;
-  view = "form";
-  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
-  render();
-}
 
 function themeToggleHTML(){
   return `<button class="theme-toggle" type="button" aria-label="Mode gelap" title="Mode gelap"><span class="switch"><span class="knob"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span></span></button>`;
@@ -736,21 +749,13 @@ function renderList(){
   `;
 }
 
-function renderForm(){
-  const f = form;
+function renderFormSections(f, totalId){
   const total = (Number(f.qty)||0)*(Number(f.estimasiHarga)||0);
   const divisiOpts = DIVISI_LIST.map(d=>`<option ${f.divisi===d?"selected":""}>${d}</option>`).join("");
   const deptOpts = DEPT_LIST.map(d=>`<option ${f.departemen===d?"selected":""}>${d}</option>`).join("");
   const satuanOpts = SATUAN_LIST.map(s=>`<option ${f.satuan===s?"selected":""}>${s}</option>`).join("");
   const statusOpts = STATUS_LIST.map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("");
-
   return `
-    <div style="max-width:760px;">
-      <div class="form-header">
-        <h1>${editingId? "Ubah Pengadaan":"Pengadaan Baru"}</h1>
-        <div class="header-actions">${themeToggleHTML()}<button id="btnCloseForm">×</button></div>
-      </div>
-      <form id="pengadaanForm">
         <div class="section">
           <h3>Informasi Umum</h3>
           <div class="field-grid">
@@ -769,7 +774,7 @@ function renderForm(){
             <label class="field"><span>Qty <span class="req">*</span></span><input type="number" min="0" name="qty" value="${escapeHtml(f.qty)}" required></label>
             <label class="field"><span>Satuan</span><select name="satuan">${satuanOpts}</select></label>
             <label class="field"><span>Estimasi Harga (per satuan)</span><input type="number" min="0" name="estimasiHarga" value="${escapeHtml(f.estimasiHarga)}"></label>
-            <label class="field"><span>Estimasi Total</span><input id="estimasiTotalDisplay" readonly value="${formatRupiah(total)}"></label>
+            <label class="field"><span>Estimasi Total</span><input id="${totalId}" readonly value="${formatRupiah(total)}"></label>
           </div>
         </div>
         <div class="section">
@@ -782,6 +787,25 @@ function renderForm(){
             <label class="field"><span>Keterangan</span><input name="keterangan" value="${escapeHtml(f.keterangan)}"></label>
           </div>
         </div>
+  `;
+}
+
+function renderForm(){
+  const f = form;
+  const total = (Number(f.qty)||0)*(Number(f.estimasiHarga)||0);
+  const divisiOpts = DIVISI_LIST.map(d=>`<option ${f.divisi===d?"selected":""}>${d}</option>`).join("");
+  const deptOpts = DEPT_LIST.map(d=>`<option ${f.departemen===d?"selected":""}>${d}</option>`).join("");
+  const satuanOpts = SATUAN_LIST.map(s=>`<option ${f.satuan===s?"selected":""}>${s}</option>`).join("");
+  const statusOpts = STATUS_LIST.map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("");
+
+  return `
+    <div style="max-width:760px;">
+      <div class="form-header">
+        <h1>${editingId? "Ubah Pengadaan":"Pengadaan Baru"}</h1>
+        <div class="header-actions">${themeToggleHTML()}<button id="btnCloseForm">×</button></div>
+      </div>
+      <form id="pengadaanForm">
+        ${renderFormSections(f, "estimasiTotalDisplay")}
         <div class="form-actions">
           <button type="submit" class="btn-accent">${editingId? "Simpan Perubahan":"Simpan Pengadaan"}</button>
           <button type="button" class="btn-plain" id="btnCancelForm">Batal</button>
@@ -1029,6 +1053,81 @@ function renderListOnly(){
   }
 }
 
+// ---------- Popup ubah pengadaan ----------
+let editModalId = null, editFormData = null;
+function lockScroll(){
+  const sw = window.innerWidth - document.documentElement.clientWidth;
+  document.body.style.overflow = "hidden";
+  if(sw > 0) document.body.style.paddingRight = sw + "px";
+}
+function unlockScroll(){
+  document.body.style.overflow = "";
+  document.body.style.paddingRight = "";
+}
+function openEditForm(id){
+  const r = records.find(x=>x.id===id);
+  if(!r) return;
+  editModalId = id;
+  editFormData = {...emptyForm(), ...r};
+  document.getElementById("editFields").innerHTML = renderFormSections(editFormData, "editTotalDisplay");
+  const f = document.getElementById("editForm");
+  const upd = ()=>{
+    const t = (Number(f.elements["qty"].value)||0) * (Number(f.elements["estimasiHarga"].value)||0);
+    document.getElementById("editTotalDisplay").value = formatRupiah(t);
+  };
+  f.elements["qty"].oninput = upd;
+  f.elements["estimasiHarga"].oninput = upd;
+  lockScroll();
+  document.getElementById("editModal").hidden = false;
+  document.querySelector("#editModal .modal").scrollTop = 0;
+  f.elements["namaBarang"].focus({preventScroll:true});
+}
+function closeEditModal(){
+  editModalId = null; editFormData = null;
+  document.getElementById("editModal").hidden = true;
+  unlockScroll();
+}
+// Perubahan tampil seketika; penyimpanan ke server berjalan di latar belakang.
+async function saveEditOptimistic(updated){
+  const idx = records.findIndex(r=>r.id===updated.id);
+  if(idx < 0) return;
+  const prev = records[idx];
+  updated = normRecord(updated);
+  records[idx] = updated;
+  records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+  if(view !== "form") render();
+  if(!onlineMode()){ persist(); return; }
+  pendingWrites++;
+  showSyncStatus("Menyimpan...");
+  try{
+    await apiRequest({action:"save", record: updated});
+    showSyncStatus("✓ Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
+  }catch(e){
+    const i = records.findIndex(r=>r.id===updated.id);
+    if(i >= 0) records[i] = prev;          // gagal: kembalikan data lama
+    records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
+    if(view !== "form") render();
+    showSyncStatus("Gagal menyimpan", true);
+    throw e;
+  }finally{
+    pendingWrites--;
+  }
+}
+document.getElementById("editClose").addEventListener("click", closeEditModal);
+document.getElementById("editCancel").addEventListener("click", closeEditModal);
+document.getElementById("editForm").addEventListener("submit", (e)=>{
+  e.preventDefault();
+  if(!editFormData) return;
+  const fd = new FormData(e.target);
+  const updated = {...editFormData};
+  for(const [k,v] of fd.entries()) updated[k]=v;
+  if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || !updated.qty || !updated.tglPengajuan) return;
+  updated.qty = Number(updated.qty)||0;
+  updated.estimasiHarga = Number(updated.estimasiHarga)||0;
+  closeEditModal();
+  saveEditOptimistic(updated).catch(err=>alert("Gagal menyimpan: "+err.message));
+});
+
 // ---------- Popup konfirmasi hapus ----------
 let deleteTargetId = null;
 function askDelete(id){
@@ -1058,6 +1157,7 @@ document.getElementById("confirmModal").addEventListener("click", (e)=>{
 });
 document.addEventListener("keydown", (e)=>{
   if(e.key === "Escape" && !document.getElementById("confirmModal").hidden) closeDeleteModal();
+  if(e.key === "Escape" && !document.getElementById("editModal").hidden) closeEditModal();
 });
 
 // ---------- Nav wiring ----------
