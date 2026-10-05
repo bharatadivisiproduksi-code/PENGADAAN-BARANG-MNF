@@ -608,6 +608,7 @@ function computeTotalEstimasiForBulan(bulan){
   },0);
 }
 function computeFiltered(){
+  // "records" disimpan menurut urutan input (sama seperti baris di Sheet); tampilkan yang terbaru di paling atas.
   return records.filter(r=>{
     if(filterDivisi!=="Semua" && r.divisi!==filterDivisi) return false;
     if(filterStatus!=="Semua" && r.status!==filterStatus) return false;
@@ -621,7 +622,7 @@ function computeFiltered(){
       if(!hay.includes(q)) return false;
     }
     return true;
-  });
+  }).reverse();
 }
 
 // ---------- Render ----------
@@ -1097,9 +1098,9 @@ function renderListOnly(){
   }
 }
 
-// Data baru ada di urutan paling akhir (urutan input): pastikan barisnya ikut dimuat lalu gulir ke sana.
+// Data baru tampil di paling atas: gulir ke barisnya dan sorot sebentar.
 function revealRecord(id){
-  const idx = records.findIndex(r=>r.id===id);
+  const idx = computeFiltered().findIndex(r=>r.id===id);   // posisi di tampilan (terbaru = 0)
   if(idx < 0 || view !== "list") return;
   if(idx >= visibleCount){
     visibleCount = Math.ceil((idx + 1) / PAGE_SIZE) * PAGE_SIZE;
