@@ -233,12 +233,14 @@ async function loadRecordsOnline(silent=false){
     return;
   }
   if(isSyncing) return;
+  if(silent && pendingWrites > 0) return;
   isSyncing = true;
   if(!silent) showSyncStatus("Sabar Lagi Mikir Bree...");
   try{
     const data = await apiRequest({action:"list"});
+    if(silent && pendingWrites > 0) return;   // ada simpanan yang belum selesai: jangan timpa
     const before = JSON.stringify(records);
-    records = Array.isArray(data.records) ? data.records : [];
+    records = Array.isArray(data.records) ? data.records.map(normRecord) : [];
     records.sort((a,b)=> new Date(b.tglPengajuan) - new Date(a.tglPengajuan));
     const changed = before !== JSON.stringify(records);
     showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
@@ -263,7 +265,7 @@ async function saveRecordOnline(record){
     return;
   }
   showSyncStatus("sabar anjing...");
-  await apiRequest({action:"save", record});
+  await apiRequest({action:"save", record: normRecord(record)});
   await loadRecordsOnline(true);
   showSyncStatus("✓ Wis Tek Simpen SUU • " + new Date().toLocaleTimeString("id-ID"));
 }
@@ -280,19 +282,30 @@ async function deleteRecordOnline(id){
   showSyncStatus("✓ Makane Mikir • " + new Date().toLocaleTimeString("id-ID"));
 }
 
+let pendingWrites = 0;
 async function updateStatusOnline(id, status){
   const rec = records.find(r=>r.id===id);
   if(!rec) return;
-  const updated = {...rec, status};
+  const prev = rec.status;
+  // Tampilan langsung berubah (optimistik), simpan ke server berjalan di latar belakang.
+  rec.status = status;
   if(!onlineMode()){
-    rec.status = status;
     persist();
     return;
   }
-  showSyncStatus("Sabar Cuk...");
-  await apiRequest({action:"save", record:updated});
-  await loadRecordsOnline(true);
-  showSyncStatus("✓ Wis Blok • " + new Date().toLocaleTimeString("id-ID"));
+  pendingWrites++;
+  showSyncStatus("Menyimpan...");
+  try{
+    await apiRequest({action:"save", record: normRecord({...rec, status})});
+    showSyncStatus("✓ Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
+  }catch(e){
+    rec.status = prev;           // gagal: kembalikan status lama
+    if(view !== "form") render();
+    showSyncStatus("Gagal menyimpan status", true);
+    throw e;
+  }finally{
+    pendingWrites--;
+  }
 }
 
 function startAutoSync(){
@@ -389,6 +402,26 @@ function persist(){
 }
 
 // ---------- Helpers ----------
+// Google Sheets mengubah "2026-09-25" jadi tanggal sungguhan, lalu dikirim balik sebagai
+// "2026-09-24T17:00:00.000Z" (UTC). Kembalikan ke tanggal lokal polos YYYY-MM-DD.
+const DATE_FIELDS = ["tglPengajuan","tglPO","tglDiterima"];
+function normDate(v){
+  if(typeof v !== "string") return v;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if(/^\d{4}-\d{2}-\d{2}T/.test(v)){
+    const d = new Date(v);
+    if(isNaN(d.getTime())) return v;
+    const m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
+    return d.getFullYear()+"-"+m+"-"+day;
+  }
+  return v;
+}
+function normRecord(r){
+  const o = {...r};
+  DATE_FIELDS.forEach(k=>{ if(o[k]) o[k] = normDate(o[k]); });
+  return o;
+}
+
 function idFor(){ return Date.now()+"-"+Math.random().toString(36).slice(2,8); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function nextNoPengadaan(){
