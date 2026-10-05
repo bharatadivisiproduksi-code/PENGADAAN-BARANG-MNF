@@ -40,7 +40,7 @@
 
   .app{display:flex;min-height:100vh;}
 
-  .sidebar{width:76px;flex-shrink:0;background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:24px 0;}
+  .sidebar{width:76px;flex-shrink:0;background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:24px 0;position:sticky;top:0;height:100vh;align-self:flex-start;z-index:20;}
   .brand{padding:0 4px;margin-bottom:28px;text-align:center;}
   .brand-mark{width:44px;height:44px;margin:0 auto 10px;}
   .brand-mark svg{width:100%;height:100%;display:block;}
@@ -71,7 +71,7 @@
   html[data-theme="dark"] .switch .knob svg path{fill:#F4E9D8;}
   .theme-toggle:focus-visible .switch{outline:2px solid var(--accent);outline-offset:3px;}
 
-  .main{flex:1;padding:32px;overflow-y:auto;}
+  .main{flex:1;min-width:0;padding:32px;overflow-y:auto;}
 
   .page-header{display:flex;align-items:center;justify-content:between;justify-content:space-between;margin-bottom:24px;}
   .page-header h1{font-size:24px;}
@@ -115,6 +115,9 @@
   .row-actions{display:flex;align-items:center;gap:14px;}
   .row-actions button{background:none;border:none;color:var(--muted);font-size:13px;padding:0;}
   .status-select{border:none;background:transparent;font-size:12px;}
+  .load-more{padding:18px;text-align:center;color:var(--muted);font-size:13px;}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
   .modal-overlay{position:fixed;inset:0;background:rgba(10,13,17,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:1000;}
   .modal-overlay[hidden]{display:none;}
   .modal{width:100%;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:28px 24px 22px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.35);animation:modalIn .15s ease;}
@@ -383,6 +386,10 @@ let filterStatus = "Semua";
 let filterBulan = "Semua";
 let statBulan = "Semua";
 let chartInstance = null;
+const PAGE_SIZE = 10;          // jumlah data yang ditampilkan di awal & setiap kali memuat lagi
+let visibleCount = PAGE_SIZE;
+let loadingMore = false;
+let loadObserver = null;
 
 // ---------- Ingat posisi saat refresh ----------
 const UI_KEY = "pengadaan_ui_v1";
@@ -397,6 +404,7 @@ let pendingScrollY = 0;
     if(u.filterBulan)  filterBulan  = u.filterBulan;
     if(u.statBulan)    statBulan    = u.statBulan;
     if(typeof u.search === "string") search = u.search;
+    if(u.visibleCount >= PAGE_SIZE) visibleCount = u.visibleCount;
     pendingScrollY = u.scrollY || 0;
   }catch(e){}
 })();
@@ -407,7 +415,7 @@ function saveUI(){
     const main = document.getElementById("mainContent");
     const y = pendingScrollY || Math.max(window.scrollY || 0, main ? main.scrollTop : 0);
     sessionStorage.setItem(UI_KEY, JSON.stringify({
-      view:v, filterDivisi, filterStatus, filterBulan, statBulan, search, scrollY:y
+      view:v, filterDivisi, filterStatus, filterBulan, statBulan, search, visibleCount, scrollY:y
     }));
   }catch(e){}
 }
@@ -553,6 +561,7 @@ function computeFiltered(){
 
 // ---------- Render ----------
 function setView(v){
+  if(v === "list" && view !== "list") visibleCount = PAGE_SIZE;
   view = v;
   editingId = null;
   document.querySelectorAll(".nav button").forEach(b=>{
@@ -658,20 +667,21 @@ function renderDashboard(){
   `;
 }
 
-function renderList(){
-  const filtered = computeFiltered();
-  const optDivisi = ["Semua",...DIVISI_LIST].map(d=>`<option ${filterDivisi===d?"selected":""}>${d}</option>`).join("");
-  const optStatus = ["Semua",...STATUS_LIST].map(s=>`<option ${filterStatus===s?"selected":""}>${s}</option>`).join("");
-  const optBulan = ["Semua",...MONTHS].map(m=>`<option ${filterBulan===m?"selected":""}>${m}</option>`).join("");
+function listCountText(filtered){
+  const n = Math.min(visibleCount, filtered.length);
+  return `Menampilkan ${n} dari ${filtered.length} data`;
+}
 
-  const rowsHtml = filtered.length===0
+function renderListBody(filtered){
+  const shown = filtered.slice(0, visibleCount);
+  const rowsHtml = shown.length===0
     ? `<div class="empty-state">Belum ada data yang cocok. Tambahkan pengadaan baru untuk mulai mengisi daftar.</div>`
     : `<table>
         <thead><tr>
           <th>No. Pengadaan</th><th>Tanggal</th><th>Divisi</th><th>Barang</th><th>Qty</th><th>Estimasi Total</th><th>Status</th><th></th>
         </tr></thead>
         <tbody>
-        ${filtered.map(r=>{
+        ${shown.map(r=>{
           const total = (Number(r.qty)||0)*(Number(r.estimasiHarga)||0);
           const statusOpts = STATUS_LIST.map(s=>`<option value="${s}" ${r.status===s?"selected":""}>${s}</option>`).join("");
           const actionsHtml = `<div class="row-actions">
@@ -692,11 +702,23 @@ function renderList(){
         </tbody>
       </table>`;
 
+  const more = shown.length < filtered.length
+    ? `<div class="load-more" id="loadMore">Gulir ke bawah untuk memuat data berikutnya</div>`
+    : "";
+  return `<div class="table-wrap">${rowsHtml}</div>${more}`;
+}
+
+function renderList(){
+  const filtered = computeFiltered();
+  const optDivisi = ["Semua",...DIVISI_LIST].map(d=>`<option ${filterDivisi===d?"selected":""}>${d}</option>`).join("");
+  const optStatus = ["Semua",...STATUS_LIST].map(s=>`<option ${filterStatus===s?"selected":""}>${s}</option>`).join("");
+  const optBulan = ["Semua",...MONTHS].map(m=>`<option ${filterBulan===m?"selected":""}>${m}</option>`).join("");
+
   return `
     <div class="page-header">
       <div>
         <h1>Daftar Pengadaan</h1>
-        <p>${filtered.length} dari data tersimpan</p>
+        <p id="listCount">${listCountText(filtered)}</p>
       </div>
       <div class="header-actions" style="gap:10px;">
         ${themeToggleHTML()}
@@ -710,7 +732,7 @@ function renderList(){
       <select class="filter-select" id="filterStatus">${optStatus}</select>
       <select class="filter-select" id="filterBulan">${optBulan}</select>
     </div>
-    <div class="table-wrap">${rowsHtml}</div>
+    <div id="listBody">${renderListBody(filtered)}</div>
   `;
 }
 
@@ -878,6 +900,54 @@ function exportToExcel(){
 }
 
 // ---------- Event handlers ----------
+function bindRowHandlers(){
+  document.querySelectorAll("[data-edit]").forEach(b=> b.onclick = ()=> openEditForm(b.dataset.edit));
+  document.querySelectorAll("[data-del]").forEach(b=> b.onclick = ()=> askDelete(b.dataset.del));
+  document.querySelectorAll("[data-status-change]").forEach(sel=>{
+    sel.onchange = (e)=>{
+      const rec = records.find(r=>r.id===sel.dataset.statusChange);
+      if(rec){
+        updateStatusOnline(sel.dataset.statusChange, e.target.value)
+          .catch(e=>alert("Gagal memperbarui status: "+e.message));
+        render();
+      }
+    };
+  });
+}
+
+// ---------- Muat data bertahap saat di-scroll ----------
+function setupLoadMore(){
+  if(loadObserver){ loadObserver.disconnect(); loadObserver = null; }
+  const el = document.getElementById("loadMore");
+  if(!el || typeof IntersectionObserver === "undefined") return;
+  loadObserver = new IntersectionObserver((entries)=>{
+    if(entries.some(e=>e.isIntersecting)) loadMoreRows();
+  }, {rootMargin:"0px 0px 60px 0px"});
+  loadObserver.observe(el);
+}
+function loadMoreRows(){
+  if(loadingMore || view !== "list") return;
+  const filtered = computeFiltered();
+  if(visibleCount >= filtered.length) return;
+  loadingMore = true;
+  const el = document.getElementById("loadMore");
+  if(el) el.innerHTML = '<span class="spinner"></span>Memuat data...';
+  setTimeout(()=>{
+    loadingMore = false;
+    if(view !== "list") return;
+    visibleCount += PAGE_SIZE;
+    const f = computeFiltered();
+    const body = document.getElementById("listBody");
+    if(!body) return;
+    body.innerHTML = renderListBody(f);          // hanya tabel yang diperbarui, bukan seluruh halaman
+    const c = document.getElementById("listCount");
+    if(c) c.textContent = listCountText(f);
+    bindRowHandlers();
+    setupLoadMore();
+    saveUI();
+  }, 500);
+}
+
 function attachHandlers(){
   document.querySelectorAll(".theme-toggle").forEach(b=> b.onclick = toggleTheme);
   const btnAddDash = document.getElementById("btnAddDash");
@@ -893,32 +963,22 @@ function attachHandlers(){
   if(view==="list"){
     const searchInput = document.getElementById("searchInput");
     if(searchInput){
-      searchInput.oninput = (e)=>{ search = e.target.value; renderListOnly(); };
+      searchInput.oninput = (e)=>{ search = e.target.value; visibleCount = PAGE_SIZE; renderListOnly(); };
       // keep focus after re-render
-      searchInput.focus();
+      searchInput.focus({preventScroll:true});
       searchInput.selectionStart = searchInput.selectionEnd = searchInput.value.length;
     }
     const fd = document.getElementById("filterDivisi");
-    if(fd) fd.onchange = (e)=>{ filterDivisi = e.target.value; render(); };
+    if(fd) fd.onchange = (e)=>{ filterDivisi = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const fs = document.getElementById("filterStatus");
-    if(fs) fs.onchange = (e)=>{ filterStatus = e.target.value; render(); };
+    if(fs) fs.onchange = (e)=>{ filterStatus = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const fb = document.getElementById("filterBulan");
-    if(fb) fb.onchange = (e)=>{ filterBulan = e.target.value; render(); };
+    if(fb) fb.onchange = (e)=>{ filterBulan = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const btnExport = document.getElementById("btnExportExcel");
     if(btnExport) btnExport.onclick = exportToExcel;
 
-    document.querySelectorAll("[data-edit]").forEach(b=> b.onclick = ()=> openEditForm(b.dataset.edit));
-    document.querySelectorAll("[data-del]").forEach(b=> b.onclick = ()=> askDelete(b.dataset.del));
-    document.querySelectorAll("[data-status-change]").forEach(sel=>{
-      sel.onchange = (e)=>{
-        const rec = records.find(r=>r.id===sel.dataset.statusChange);
-        if(rec){
-          updateStatusOnline(sel.dataset.statusChange, e.target.value)
-            .catch(e=>alert("Gagal memperbarui status: "+e.message));
-          render();
-        }
-      };
-    });
+    bindRowHandlers();
+    setupLoadMore();
   }
 
   if(view==="form"){
