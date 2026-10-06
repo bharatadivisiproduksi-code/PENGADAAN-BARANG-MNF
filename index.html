@@ -241,6 +241,24 @@
   .list-band{margin:-32px -32px 0;padding:28px 32px 8px;background:var(--band);}
   .filters{background:var(--band);-webkit-backdrop-filter:none;backdrop-filter:none;padding:12px 32px 18px;margin-bottom:18px;box-shadow:var(--band-shadow);}
   .filters::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--grad);}
+  /* Baris filter + pencarian: sejajar dan tetap terlihat saat scroll */
+  .list-actions-column{display:flex;flex-direction:column;align-items:stretch;gap:8px;}
+  .list-actions-column .btn-dark{justify-content:center;min-width:170px;}
+  .list-actions-column .search-box{display:none;}
+  .list-filter-only{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;}
+  .list-filter-only .filter-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;}
+  .list-filter-only .search-box{display:flex;flex:0 0 300px;width:300px;min-width:220px;background:var(--paper);box-shadow:0 4px 14px rgba(31,79,194,.10);}
+  .list-filter-only .search-box input{width:100%;}
+  .filters{position:sticky;top:0;z-index:15;}
+  @media (max-width:900px){
+    .list-filter-only{flex-wrap:wrap;}
+    .list-filter-only .search-box{flex:1 1 260px;width:auto;}
+  }
+  @media (max-width:520px){
+    .list-filter-only{align-items:stretch;}
+    .list-filter-only .filter-controls{width:100%;}
+    .list-filter-only .search-box{flex:1 1 100%;width:100%;min-width:0;}
+  }
 </style>
 </head>
 <body>
@@ -844,17 +862,24 @@ function renderList(){
         <h1>Daftar Pengadaan</h1>
         <p id="listCount">${listCountText(filtered)}</p>
       </div>
-      <div class="header-actions" style="gap:10px;">
+      <div class="header-actions" style="gap:10px;align-items:flex-start;">
         ${themeToggleHTML()}
         <button class="btn-outline" id="btnExportExcel">⬇ Export Excel</button>
-        <button class="btn-dark" id="btnAddList">+ Tambah</button>
+        <div class="list-actions-column">
+          <button class="btn-dark" id="btnAddList">+ Tambah</button>
+          <div class="search-box">🔍 <input id="searchInput" placeholder="Cari barang, no. pengadaan, supplier..." value="${escapeHtml(search)}"></div>
+        </div>
       </div>
     </div>
     <div class="filters">
-      <div class="search-box">🔍 <input id="searchInput" placeholder="Cari barang, no. pengadaan, supplier..." value="${escapeHtml(search)}"></div>
-      <select class="filter-select" id="filterDivisi">${optDivisi}</select>
-      <select class="filter-select" id="filterStatus">${optStatus}</select>
-      <select class="filter-select" id="filterBulan">${optBulan}</select>
+      <div class="list-filter-only">
+        <div class="filter-controls">
+          <select class="filter-select" id="filterDivisi">${optDivisi}</select>
+          <select class="filter-select" id="filterStatus">${optStatus}</select>
+          <select class="filter-select" id="filterBulan">${optBulan}</select>
+        </div>
+        <div class="search-box">🔍 <input id="searchInput" placeholder="Cari barang, no. pengadaan, supplier..." value="${escapeHtml(search)}"></div>
+      </div>
     </div>
     <div id="listBody">${renderListBody(filtered)}</div>
   `;
