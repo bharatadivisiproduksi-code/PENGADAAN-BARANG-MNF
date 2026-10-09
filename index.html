@@ -264,6 +264,18 @@
   .proof-card img{width:100%;height:170px;object-fit:cover;display:block;}
   .proof-card .proof-broken{height:170px;}
   .proof-card span{display:block;padding:6px 8px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* ===== Penerimaan: sesuai / kurang / lebih ===== */
+  .tm-badge{display:inline-block;margin-top:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;}
+  .tm-badge.kurang,#terimaHint.kurang{color:#D7263D;background:rgba(215,38,61,.12);}
+  .tm-badge.lebih,#terimaHint.lebih{color:#B5760B;background:rgba(224,154,26,.16);}
+  .tm-badge.sesuai,#terimaHint.sesuai{color:#1B8A5A;background:rgba(31,163,107,.14);}
+  .terima-note{display:flex;align-items:center;gap:10px;min-height:22px;}
+  #terimaHint{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;}
+  #terimaHint:empty{display:none;}
+  .link-btn{background:none;border:none;padding:0;color:var(--blue);font-size:12px;text-decoration:underline;cursor:pointer;}
+  .stat-link{cursor:pointer;transition:transform .12s ease,box-shadow .15s ease;}
+  .stat-link:hover,.stat-link:focus-visible{transform:translateY(-2px);outline:none;box-shadow:0 0 0 3px var(--focus),var(--shadow);}
 </style>
 </head>
 <body>
@@ -549,6 +561,7 @@ let form = null;
 let search = "";
 let filterDivisi = "Semua";
 let filterStatus = "Semua";
+let filterTerima = "Semua";
 let filterBulan = "Semua";
 let statBulan = "Semua";
 let chartInstance = null;
@@ -567,6 +580,7 @@ let pendingScrollY = 0;
     if(u.view === "dashboard" || u.view === "list") view = u.view;
     if(u.filterDivisi) filterDivisi = u.filterDivisi;
     if(u.filterStatus) filterStatus = u.filterStatus;
+    if(u.filterTerima) filterTerima = u.filterTerima;
     if(u.filterBulan)  filterBulan  = u.filterBulan;
     if(u.statBulan)    statBulan    = u.statBulan;
     if(typeof u.search === "string") search = u.search;
@@ -581,7 +595,7 @@ function saveUI(){
     const main = document.getElementById("mainContent");
     const y = pendingScrollY || Math.max(window.scrollY || 0, main ? main.scrollTop : 0);
     sessionStorage.setItem(UI_KEY, JSON.stringify({
-      view:v, filterDivisi, filterStatus, filterBulan, statBulan, search, visibleCount, scrollY:y
+      view:v, filterDivisi, filterStatus, filterTerima, filterBulan, statBulan, search, visibleCount, scrollY:y
     }));
   }catch(e){}
 }
@@ -665,11 +679,34 @@ function emptyForm(){
   return {
     id:"", noPengadaan:"", tglPengajuan: todayISO(), divisi:"GA", departemen:"Produksi",
     keperluan:"", namaBarang:"", spesifikasi:"", qty:"", satuan:"Pcs", estimasiHarga:"",
-    supplier:"", tglPO:"", tglDiterima:"", status:"Pengajuan", keterangan:""
+    supplier:"", tglPO:"", tglDiterima:"", status:"Pengajuan", keterangan:"", qtyDiterima:""
   };
 }
 function escapeHtml(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ---------- Pengadaan vs penerimaan ----------
+// qtyDiterima kosong = belum dicatat. Selisih = diterima - dipesan (negatif = kurang).
+function terimaInfo(r){
+  if(r.qtyDiterima === "" || r.qtyDiterima == null) return {kind:"belum", diff:0};
+  const diff = (Number(r.qtyDiterima)||0) - (Number(r.qty)||0);
+  return {kind: diff < 0 ? "kurang" : diff > 0 ? "lebih" : "sesuai", diff};
+}
+const TERIMA_FILTERS = ["Semua","Kurang","Sesuai","Lebih","Belum dicatat"];
+function normQtyTerima(o){
+  o.qtyDiterima = (o.qtyDiterima === "" || o.qtyDiterima == null) ? "" : Math.max(0, Number(o.qtyDiterima)||0);
+}
+function terimaBadge(r){
+  if(r.status === "Batal") return "";
+  const t = terimaInfo(r);
+  if(t.kind === "kurang") return `<div class="tm-badge kurang">Kurang ${-t.diff}</div>`;
+  if(t.kind === "lebih")  return `<div class="tm-badge lebih">Lebih ${t.diff}</div>`;
+  if(t.kind === "sesuai") return `<div class="tm-badge sesuai">Sesuai</div>`;
+  return "";
+}
+function countKurang(){
+  return records.filter(r=> r.status !== "Batal" && terimaInfo(r).kind === "kurang").length;
 }
 
 // ---------- Derived ----------
@@ -712,6 +749,12 @@ function computeFiltered(){
   return records.filter(r=>{
     if(filterDivisi!=="Semua" && r.divisi!==filterDivisi) return false;
     if(filterStatus!=="Semua" && r.status!==filterStatus) return false;
+    if(filterTerima!=="Semua"){
+      if(r.status === "Batal") return false;      // pengadaan batal tidak dihitung dalam pengecekan penerimaan
+      const k = terimaInfo(r).kind;
+      const want = {"Kurang":"kurang","Sesuai":"sesuai","Lebih":"lebih","Belum dicatat":"belum"}[filterTerima];
+      if(k !== want) return false;
+    }
     if(filterBulan!=="Semua"){
       const idx = monthIndexFromISO(r.tglPengajuan);
       if(idx===null || MONTHS[idx]!==filterBulan) return false;
@@ -804,6 +847,7 @@ function renderDashboard(){
       <div class="stat-card"><div class="icon">▣</div><div class="label">Total Pengadaan</div><div class="value">${stats.total}</div></div>
       <div class="stat-card"><div class="icon">◧</div><div class="label">Divisi GA</div><div class="value">${stats.ga}</div></div>
       <div class="stat-card"><div class="icon">◨</div><div class="label">Divisi Purchasing</div><div class="value">${stats.purchasing}</div></div>
+      <div class="stat-card stat-link" id="cardKurang" role="button" tabindex="0" title="Klik untuk melihat daftarnya"><div class="icon">⚠</div><div class="label">Penerimaan Kurang</div><div class="value">${countKurang()}</div></div>
       <div class="stat-card">
         <div class="icon">$</div>
         <div class="label" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
@@ -855,7 +899,7 @@ function renderListBody(filtered){
             <td>${formatTgl(r.tglPengajuan)}</td>
             <td>${escapeHtml(r.divisi)}</td>
             <td>${escapeHtml(r.namaBarang)}<div class="sub-text">${escapeHtml(r.departemen)}</div></td>
-            <td>${r.qty} ${escapeHtml(r.satuan)}</td>
+            <td>${terimaInfo(r).kind==="belum" ? r.qty : (r.qtyDiterima+" / "+r.qty)} ${escapeHtml(r.satuan)}${terimaBadge(r)}</td>
             <td>${formatRupiah(total)}</td>
             <td><select class="status-select" data-status-change="${r.id}" style="color:${STATUS_COLORS[r.status]}">${statusOpts}</select></td>
             <td>${actionsHtml}</td>
@@ -874,6 +918,7 @@ function renderList(){
   const filtered = computeFiltered();
   const optDivisi = ["Semua",...DIVISI_LIST].map(d=>`<option ${filterDivisi===d?"selected":""}>${d}</option>`).join("");
   const optStatus = ["Semua",...STATUS_LIST].map(s=>`<option ${filterStatus===s?"selected":""}>${s}</option>`).join("");
+  const optTerima = TERIMA_FILTERS.map(s=>`<option value="${s}" ${filterTerima===s?"selected":""}>${s==="Semua"?"Semua Penerimaan":"Terima: "+s}</option>`).join("");
   const optBulan = ["Semua",...MONTHS].map(m=>`<option ${filterBulan===m?"selected":""}>${m}</option>`).join("");
 
   return `
@@ -892,6 +937,7 @@ function renderList(){
       <div class="search-box">🔍 <input id="searchInput" placeholder="Cari barang, no. pengadaan, supplier..." value="${escapeHtml(search)}"></div>
       <select class="filter-select" id="filterDivisi">${optDivisi}</select>
       <select class="filter-select" id="filterStatus">${optStatus}</select>
+      <select class="filter-select" id="filterTerima" title="Filter penerimaan">${optTerima}</select>
       <select class="filter-select" id="filterBulan">${optBulan}</select>
     </div>
     <div id="listBody">${renderListBody(filtered)}</div>
@@ -933,6 +979,8 @@ function renderFormSections(f, totalId){
             <label class="field"><span>Status <span class="req">*</span></span><select name="status">${statusOpts}</select></label>
             <label class="field"><span>Tanggal PO</span><input type="date" name="tglPO" value="${f.tglPO}"></label>
             <label class="field"><span>Tanggal Diterima</span><input type="date" name="tglDiterima" value="${f.tglDiterima}"></label>
+            <label class="field"><span>Qty Diterima</span><input type="number" min="0" name="qtyDiterima" value="${escapeHtml(f.qtyDiterima ?? "")}" placeholder="Kosong = belum dicatat">
+              <span class="terima-note"><button type="button" class="link-btn" id="fillTerima">Sama dengan Qty</button><b id="terimaHint"></b></span></label>
             <label class="field"><span>Keterangan</span><input name="keterangan" value="${escapeHtml(f.keterangan)}"></label>
           </div>
         </div>
@@ -1066,6 +1114,8 @@ function exportToExcel(){
     "Spesifikasi": r.spesifikasi,
     "Qty": Number(r.qty)||0,
     "Satuan": r.satuan,
+    "Qty Diterima": (r.qtyDiterima === "" || r.qtyDiterima == null) ? "" : Number(r.qtyDiterima),
+    "Selisih Penerimaan": (r.qtyDiterima === "" || r.qtyDiterima == null) ? "" : (Number(r.qtyDiterima) - (Number(r.qty)||0)),
     "Estimasi Harga Satuan": Number(r.estimasiHarga)||0,
     "Estimasi Total": (Number(r.qty)||0)*(Number(r.estimasiHarga)||0),
     "Supplier": r.supplier,
@@ -1077,7 +1127,7 @@ function exportToExcel(){
   const ws = XLSX.utils.json_to_sheet(rows);
   ws["!cols"] = [
     {wch:14},{wch:14},{wch:12},{wch:14},{wch:20},{wch:22},{wch:22},
-    {wch:6},{wch:8},{wch:18},{wch:16},{wch:18},{wch:16},{wch:14},{wch:14},{wch:24}
+    {wch:6},{wch:8},{wch:12},{wch:18},{wch:18},{wch:16},{wch:18},{wch:16},{wch:14},{wch:14},{wch:24}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pengadaan");
@@ -1143,6 +1193,12 @@ function attachHandlers(){
   if(btnAddList) btnAddList.onclick = openNewForm;
 
   if(view==="dashboard"){
+    const cardKurang = document.getElementById("cardKurang");
+    if(cardKurang){
+      const go = ()=>{ filterTerima = "Kurang"; filterStatus = "Semua"; filterDivisi = "Semua"; filterBulan = "Semua"; search = ""; setView("list"); };
+      cardKurang.onclick = go;
+      cardKurang.onkeydown = (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } };
+    }
     const statBulanSelect = document.getElementById("statBulanSelect");
     if(statBulanSelect) statBulanSelect.onchange = (e)=>{ statBulan = e.target.value; render(); };
   }
@@ -1157,6 +1213,8 @@ function attachHandlers(){
     }
     const fd = document.getElementById("filterDivisi");
     if(fd) fd.onchange = (e)=>{ filterDivisi = e.target.value; visibleCount = PAGE_SIZE; render(); };
+    const ft = document.getElementById("filterTerima");
+    if(ft) ft.onchange = (e)=>{ filterTerima = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const fs = document.getElementById("filterStatus");
     if(fs) fs.onchange = (e)=>{ filterStatus = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const fb = document.getElementById("filterBulan");
@@ -1185,6 +1243,7 @@ function attachHandlers(){
       if(totalEl) totalEl.value = formatRupiah(total);
     }
     bindProofSection();
+    bindTerimaHint(f);
     if(f.elements["qty"]) f.elements["qty"].oninput = ()=>{ syncFormFromDOM(); updateTotalDisplay(); };
     if(f.elements["estimasiHarga"]) f.elements["estimasiHarga"].oninput = ()=>{ syncFormFromDOM(); updateTotalDisplay(); };
 
@@ -1196,6 +1255,7 @@ function attachHandlers(){
       if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || !updated.qty || !updated.tglPengajuan) return;
       updated.qty = Number(updated.qty)||0;
       updated.estimasiHarga = Number(updated.estimasiHarga)||0;
+      normQtyTerima(updated);
 
       const st = proofState;
       saveStart(true);      // layar terkunci + "SEDANG MENYIMPAN..." selama menunggu server
@@ -1222,6 +1282,25 @@ function renderListOnly(){
     const el = document.getElementById("searchInput");
     if(el){ el.focus(); el.selectionStart = el.selectionEnd = cursorPos; }
   }
+}
+
+// Petunjuk langsung di form: sesuai / kurang / lebih dibanding Qty pengadaan.
+function bindTerimaHint(formEl){
+  if(!formEl) return;
+  const q = formEl.elements["qty"], t = formEl.elements["qtyDiterima"];
+  const hint = document.getElementById("terimaHint"), fill = document.getElementById("fillTerima");
+  if(!q || !t || !hint) return;
+  const upd = ()=>{
+    hint.className = "";
+    if(t.value === ""){ hint.textContent = ""; return; }
+    const diff = (Number(t.value)||0) - (Number(q.value)||0);
+    if(diff < 0){ hint.textContent = "Kurang " + (-diff); hint.className = "kurang"; }
+    else if(diff > 0){ hint.textContent = "Lebih " + diff; hint.className = "lebih"; }
+    else { hint.textContent = "Sesuai"; hint.className = "sesuai"; }
+  };
+  q.addEventListener("input", upd); t.addEventListener("input", upd);
+  if(fill) fill.onclick = ()=>{ t.value = q.value; upd(); t.focus({preventScroll:true}); };
+  upd();
 }
 
 // ---------- Bukti / foto pengajuan ----------
@@ -1419,6 +1498,7 @@ function openEditForm(id){
   document.getElementById("editFields").innerHTML = renderFormSections(editFormData, "editTotalDisplay");
   bindProofSection();
   const f = document.getElementById("editForm");
+  bindTerimaHint(f);
   const upd = ()=>{
     const t = (Number(f.elements["qty"].value)||0) * (Number(f.elements["estimasiHarga"].value)||0);
     document.getElementById("editTotalDisplay").value = formatRupiah(t);
@@ -1479,6 +1559,7 @@ document.getElementById("editForm").addEventListener("submit", (e)=>{
   if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || !updated.qty || !updated.tglPengajuan) return;
   updated.qty = Number(updated.qty)||0;
   updated.estimasiHarga = Number(updated.estimasiHarga)||0;
+  normQtyTerima(updated);
   const st = proofState;
   if(st) updated.bukti = st.existing.map(x=>({...x}));    // foto yang dihapus langsung hilang dari tampilan
   closeEditModal();
