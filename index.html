@@ -288,6 +288,9 @@
   #terimaForm .field-grid{grid-template-columns:1fr 1fr 1fr;}
   #terimaForm .section:nth-of-type(3) .field-grid{grid-template-columns:1fr 1fr;}
   @media (max-width:700px){#terimaForm .field-grid,#terimaForm .section:nth-of-type(3) .field-grid{grid-template-columns:1fr;}}
+
+  /* Form halaman penuh: selebar area konten (sampai tepi kanan) */
+  #pengadaanForm,#terimaForm{max-width:none;}
 </style>
 </head>
 <body>
@@ -1031,7 +1034,7 @@ function renderForm(){
   const statusOpts = STATUS_LIST.map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("");
 
   return `
-    <div style="max-width:760px;">
+    <div>
       <div class="form-header">
         <h1>${editingId? "Ubah Pengadaan":"Tambah Permintaan"}</h1>
         <div class="header-actions">${themeToggleHTML()}<button id="btnCloseForm">×</button></div>
