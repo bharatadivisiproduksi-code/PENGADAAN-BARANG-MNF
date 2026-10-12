@@ -1735,6 +1735,18 @@ function buildSoItems(bulan){
   });
 }
 
+// Daftar pilihan bulan untuk dropdown SO: 24 bulan terakhir sampai bulan ini (tidak bisa diketik manual).
+function soBulanOptions(){
+  const now = new Date();
+  const opts = [];
+  for(let i=0; i<24; i++){
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    opts.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));
+  }
+  if(!opts.includes(soBulan)) opts.unshift(soBulan);   // bulan yang sedang disimpan tetap muncul walau di luar rentang
+  return opts;
+}
+
 function renderSoTab(){
   const q = soSearch.trim().toLowerCase();
   const all = buildSoItems(soBulan).sort((a,b)=> a.nama.localeCompare(b.nama, "id"));
@@ -1769,7 +1781,7 @@ function renderSoTab(){
   return `
     <div class="analisa-controls">
       <div class="search-box">🔍 <input id="soSearch" placeholder="Cari nama barang..." value="${escapeHtml(soSearch)}"></div>
-      <label class="so-bulan">Bulan SO <input type="month" id="soBulan" value="${escapeHtml(soBulan)}"></label>
+      <label class="so-bulan">Bulan SO <select class="filter-select" id="soBulan">${soBulanOptions().map(b=>`<option value="${b}" ${soBulan===b?"selected":""}>${bulanLabel(b)}</option>`).join("")}</select></label>
       <button type="button" class="btn-accent so-save" id="soSave" ${soDirty.size ? "" : "disabled"}>💾 Simpan SO${soDirty.size ? " ("+soDirty.size+")" : ""}</button>
     </div>
     <div class="rm-note">Semua barang tampil di sini (urut abjad, terpisah per divisi) — tinggal isi langsung di tabel lalu klik <b>💾 Simpan SO</b>. Rumus: <b>Stok Akhir = Stok Awal + Diterima − Hasil SO</b>. Stok awal otomatis dari stok akhir SO bulan sebelumnya, diterima otomatis dari qty masuk Laporan Permintaan pada bulan SO yang sama; keduanya tetap bisa diubah (kolom berubah merah = belum disimpan). Stok akhir menjadi stok awal bulan berikutnya. Klik waktu di kolom "Terakhir Diedit" untuk melihat riwayat editnya.</div>
@@ -1799,9 +1811,11 @@ function bindAnalisa(){
 function bindSoTab(){
   const bln = document.getElementById("soBulan");
   if(bln) bln.onchange = (e)=>{
+    const baru = e.target.value;
+    if(baru === soBulan) return;
     if(soDirty.size && !confirm("Ada "+soDirty.size+" perubahan belum disimpan. Buang dan ganti bulan?")){ e.target.value = soBulan; return; }
     soDirty.clear();
-    soBulan = e.target.value;
+    soBulan = baru;
     render();
   };
   const items = new Map(buildSoItems(soBulan).map(i=>[i.idx, i]));
