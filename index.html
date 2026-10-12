@@ -318,19 +318,19 @@
   .rm-more{color:var(--muted);font-size:12px;padding-top:10px;border-top:1px solid var(--line);}
   @media (max-width:700px){.remind-row{flex-wrap:wrap;}}
 
-  .so-grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,2fr);gap:16px;margin-bottom:20px;}
-  .so-form .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
-  .so-form label{font-size:12px;color:var(--muted);}
-  .so-form input,.so-form select,.so-form textarea{width:100%;padding:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;}
-  .so-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px;}
-  .so-kpi{padding:14px;background:var(--paper-deep);border-radius:8px;}
-  .so-kpi small{display:block;color:var(--muted);font-size:12px;}
-  .so-kpi strong{display:block;margin-top:7px;font-size:19px;}
-  .so-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;}
-  .so-actions select,.so-actions input{padding:9px 10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;}
-  .so-note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:10px;}
-  @media(max-width:850px){.so-grid{grid-template-columns:1fr}.so-kpis{grid-template-columns:1fr}}
-
+  /* ===== Tab Analisa / Stok Opname ===== */
+  .tab-bar{display:flex;gap:8px;margin:-6px 0 18px;flex-wrap:wrap;}
+  .tab-btn{padding:10px 20px;font-size:13.5px;font-weight:600;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--muted);transition:all .15s ease;}
+  .tab-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow);}
+  .tab-btn.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(31,79,194,.25);}
+  .so-form-wrap{margin-bottom:20px;}
+  .so-form-wrap[hidden]{display:none;}
+  #soForm .field-grid{grid-template-columns:1fr 1fr 1fr;}
+  @media (max-width:700px){#soForm .field-grid{grid-template-columns:1fr;}}
+  .so-akhir{display:flex;align-items:center;gap:10px;min-height:22px;font-size:12px;color:var(--muted);}
+  .so-akhir b{font-size:13px;color:var(--ink);}
+  .so-akhir .neg{color:#D7263D;}
+  .so-akhir .pos{color:#1FA36B;}
 </style>
 </head>
 <body>
@@ -356,7 +356,6 @@
       <button data-view="terima" data-tip="Tambah Penerimaan" aria-label="Tambah Penerimaan"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1F4FC2" d="M3 13h5l1.5 2.5h5L16 13h5v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path fill="none" stroke="#1FA36B" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3v8m0 0L8.5 7.5M12 11l3.5-3.5"/></svg></button>
       <button data-view="list" data-tip="Laporan Permintaan" aria-label="Laporan Permintaan"><img alt="" src="data:image/png;base64,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"></button>
       <button data-view="analisa" data-tip="Analisa Kebutuhan" aria-label="Analisa Kebutuhan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="12" width="4.4" height="9" rx="1.2" fill="#1F4FC2"/><rect x="9.8" y="7" width="4.4" height="14" rx="1.2" fill="#7B3FB5"/><rect x="16.6" y="3" width="4.4" height="18" rx="1.2" fill="#D7263D"/></svg><span class="nav-badge" id="navBadge" hidden></span></button>
-      <button data-view="stockopname" data-tip="Stock Opname & Pemakaian" aria-label="Stock Opname dan Pemakaian"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5 12 2l8 3.5v13L12 22l-8-3.5z" fill="none" stroke="#1F4FC2" stroke-width="1.8"/><path d="m4.5 6 7.5 3.5L19.5 6M12 9.5V21" fill="none" stroke="#7B3FB5" stroke-width="1.8"/><path d="m8 13 2.2 2.2L16 10" fill="none" stroke="#1FA36B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </nav>
     <div class="sidebar-footer">
       <span id="recordCountLabel">0</span> catatan tersimpan
@@ -423,7 +422,6 @@ const SATUAN_LIST = ["Pcs","Unit","Box","Botol","Kg","Liter","Meter","Set","Dus"
 const DEPT_LIST = ["Produksi"];
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const STORAGE_KEY = "pengadaan_barang_records_v1";
-const SO_STORAGE_KEY = "pengadaan_barang_stock_opname_v1";
 const THEME_KEY = "pengadaan_theme_v1";
 
 // ================= ONLINE SYNC =================
@@ -487,13 +485,9 @@ async function loadRecordsOnline(silent=false){
     const data = await apiRequest({action:"list"});
     if(silent && pendingWrites > 0) return;   // ada simpanan yang belum selesai: jangan timpa
     const before = JSON.stringify(records);
-    const beforeSO = JSON.stringify(stockRecords);
     records = Array.isArray(data.records) ? data.records.map(normRecord) : [];
-    try{
-      const soData = await apiRequest({action:"listSO"});
-      stockRecords = Array.isArray(soData.stockRecords) ? soData.stockRecords.map(normSO) : [];
-    }catch(soErr){ console.warn("Data SO belum tersinkron:", soErr.message); }
-    const changed = before !== JSON.stringify(records) || beforeSO !== JSON.stringify(stockRecords);
+    if(Array.isArray(data.so)) soRecords = data.so.map(normSo);
+    const changed = before !== JSON.stringify(records);
     showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
     // Jangan render ulang kalau data tidak berubah (sinkron otomatis) atau user sedang mengisi form.
     if(view !== "form" && view !== "terima"){ if(changed || !silent || !document.getElementById("mainContent").children.length) render(); }
@@ -619,8 +613,11 @@ function initTheme(){
 
 // ---------- State ----------
 let records = [];
-let stockRecords = [];
-let soMonth = new Date().getFullYear()+"-"+String(new Date().getMonth()+1).padStart(2,"0");
+let soRecords = [];          // data Stok Opname per barang per bulan
+let analisaTab = "analisa";  // tab di halaman Analisa: "analisa" | "so"
+let soEditingId = null;      // sedang mengedit SO (null = tambah baru)
+let soSearch = "";
+let soForm = null;
 let view = "dashboard";
 let editingId = null;
 let form = null;
@@ -646,10 +643,12 @@ let pendingScrollY = 0;
   try{
     const u = JSON.parse(sessionStorage.getItem(UI_KEY) || "null");
     if(!u) return;
-    if(u.view === "dashboard" || u.view === "list" || u.view === "terima" || u.view === "analisa" || u.view === "stockopname") view = u.view;
+    if(u.view === "dashboard" || u.view === "list" || u.view === "terima" || u.view === "analisa") view = u.view;
     if([0,3,6,12].includes(u.analysisPeriod)) analysisPeriod = u.analysisPeriod;
     if([7,14,30].includes(u.remindLead)) remindLead = u.remindLead;
     if(typeof u.analisaSearch === "string") analisaSearch = u.analisaSearch;
+    if(u.analisaTab === "analisa" || u.analisaTab === "so") analisaTab = u.analisaTab;
+    if(typeof u.soSearch === "string") soSearch = u.soSearch;
     if(u.filterDivisi) filterDivisi = u.filterDivisi;
     if(u.filterStatus) filterStatus = u.filterStatus;
     if(u.filterTerima) filterTerima = u.filterTerima;
@@ -667,7 +666,7 @@ function saveUI(){
     const main = document.getElementById("mainContent");
     const y = pendingScrollY || Math.max(window.scrollY || 0, main ? main.scrollTop : 0);
     sessionStorage.setItem(UI_KEY, JSON.stringify({
-      view:v, analysisPeriod, remindLead, analisaSearch, filterDivisi, filterStatus, filterTerima, filterBulan, statBulan, search, visibleCount, soMonth, scrollY:y
+      view:v, analysisPeriod, remindLead, analisaSearch, analisaTab, soSearch, filterDivisi, filterStatus, filterTerima, filterBulan, statBulan, search, visibleCount, scrollY:y
     }));
   }catch(e){}
 }
@@ -681,9 +680,9 @@ function loadRecords(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     records = raw ? JSON.parse(raw) : [];
-  }catch(e){ records = []; }
-  try{ const soRaw = localStorage.getItem(SO_STORAGE_KEY); stockRecords = soRaw ? JSON.parse(soRaw).map(normSO) : []; }
-  catch(e){ stockRecords = []; }
+  }catch(e){
+    records = [];
+  }
 }
 function persist(){
   try{
@@ -691,6 +690,92 @@ function persist(){
   }catch(e){
     alert("Gagal menyimpan data ke penyimpanan browser.");
   }
+}
+
+// ---------- Storage: Stok Opname (SO) ----------
+const SO_STORAGE_KEY = "pengadaan_so_records_v1";
+function loadSoLocal(){
+  try{
+    const raw = localStorage.getItem(SO_STORAGE_KEY);
+    soRecords = raw ? JSON.parse(raw).map(normSo) : [];
+  }catch(e){
+    soRecords = [];
+  }
+}
+function persistSo(){
+  try{
+    localStorage.setItem(SO_STORAGE_KEY, JSON.stringify(soRecords));
+  }catch(e){
+    alert("Gagal menyimpan data SO ke penyimpanan browser.");
+  }
+}
+function normSo(s){
+  const o = {...s};
+  o.stokAwal   = Number(o.stokAwal)||0;
+  o.barangMasuk = Number(o.barangMasuk)||0;
+  o.hasilSO    = Number(o.hasilSO)||0;
+  o.bulan = String(o.bulan||"").slice(0,7);   // YYYY-MM
+  return o;
+}
+// Stok akhir SO = stok awal + barang masuk - hasil SO.
+// Angka ini menjadi STOK AWAL bulan selanjutnya (otomatis terisi saat tambah SO baru).
+const soStokAkhir = s => (Number(s.stokAwal)||0) + (Number(s.barangMasuk)||0) - (Number(s.hasilSO)||0);
+
+function soUpsertLocal(rec){
+  const idx = soRecords.findIndex(r=>r.id===rec.id);
+  if(idx>=0) soRecords[idx]=rec; else soRecords.push(rec);
+}
+async function saveSoOnline(rec){
+  const clean = normSo(rec);
+  if(!onlineMode()){
+    soUpsertLocal(clean); persistSo();
+    return;
+  }
+  pendingWrites++;
+  showSyncStatus("Menyimpan SO...");
+  try{
+    await apiRequest({action:"saveSO", record: clean});
+    soUpsertLocal(clean);
+    showSyncStatus("✓ SO Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
+  }finally{
+    pendingWrites--;
+  }
+}
+async function deleteSoOnline(id){
+  const idx = soRecords.findIndex(r=>r.id===id);
+  if(idx < 0) return;
+  const removed = soRecords[idx];
+  soRecords.splice(idx, 1);
+  saveStart(false, "SEDANG MENGHAPUS...");
+  if(!onlineMode()){
+    persistSo();
+    saveDone("TERHAPUS BREE");
+    return;
+  }
+  pendingWrites++;
+  showSyncStatus("Menghapus SO...");
+  try{
+    await apiRequest({action:"deleteSO", id});
+    showSyncStatus("✓ SO Terhapus • " + new Date().toLocaleTimeString("id-ID"));
+    saveDone("TERHAPUS BREE");
+  }catch(e){
+    saveFail("GAGAL MENGHAPUS");
+    soRecords.splice(idx, 0, removed);
+    if(view !== "form") render();
+    showSyncStatus("Gagal menghapus SO", true);
+    throw e;
+  }finally{
+    pendingWrites--;
+  }
+}
+// SO bulan sebelumnya untuk barang+satuan yang sama -> dipakai untuk auto-stok awal.
+function soPrev(nama, satuan, bulan){
+  const k = (nama||"").trim().toLowerCase() + "|" + (satuan||"").toLowerCase();
+  const cands = soRecords.filter(s=>{
+    const sk = (s.namaBarang||"").trim().toLowerCase() + "|" + (s.satuan||"").toLowerCase();
+    return sk === k && String(s.bulan) < String(bulan);
+  }).sort((a,b)=> String(b.bulan).localeCompare(String(a.bulan)));
+  return cands[0] || null;
 }
 
 // ---------- Helpers ----------
@@ -713,22 +798,6 @@ function normRecord(r){
   DATE_FIELDS.forEach(k=>{ if(o[k]) o[k] = normDate(o[k]); });
   return o;
 }
-const SO_DATE_FIELDS = ["tanggal"];
-function normSO(r){ const o={...r}; SO_DATE_FIELDS.forEach(k=>{if(o[k])o[k]=normDate(o[k]);}); o.qtyFisik=Number(o.qtyFisik)||0; o.hargaSatuan=Number(o.hargaSatuan)||0; return o; }
-function persistSO(){ try{localStorage.setItem(SO_STORAGE_KEY,JSON.stringify(stockRecords));}catch(e){alert("Gagal menyimpan data Stock Opname lokal.");} }
-async function saveSOOnline(record){
-  const rec=normSO(record);
-  if(!onlineMode()){const i=stockRecords.findIndex(x=>x.id===rec.id);if(i>=0)stockRecords[i]=rec;else stockRecords.push(rec);persistSO();return;}
-  pendingWrites++; showSyncStatus("Menyimpan Stock Opname...");
-  try{await apiRequest({action:"saveSO",record:rec});const i=stockRecords.findIndex(x=>x.id===rec.id);if(i>=0)stockRecords[i]=rec;else stockRecords.push(rec);showSyncStatus("✓ Stock Opname tersimpan • "+new Date().toLocaleTimeString("id-ID"));}
-  finally{pendingWrites--;}
-}
-async function deleteSOOnline(id){
-  const idx=stockRecords.findIndex(x=>x.id===id);if(idx<0)return;const removed=stockRecords.splice(idx,1)[0];
-  try{if(onlineMode())await apiRequest({action:"deleteSO",id});else persistSO();showSyncStatus("Stock Opname dihapus.");}
-  catch(e){stockRecords.splice(idx,0,removed);throw e;}
-}
-
 
 function idFor(){ return Date.now()+"-"+Math.random().toString(36).slice(2,8); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
@@ -859,6 +928,7 @@ function computeFiltered(){
 // ---------- Render ----------
 function setView(v){
   if(v !== "form") proofState = null;
+  if(v !== "analisa"){ soEditingId = null; soForm = null; }
   if(v === "terima" && view !== "terima") terimaSelId = null;
   if(v === "list" && view !== "list") visibleCount = PAGE_SIZE;
   view = v;
@@ -894,7 +964,6 @@ function render(){
   else if(view==="list") main.innerHTML = renderList();
   else if(view==="terima") main.innerHTML = renderTerima();
   else if(view==="analisa") main.innerHTML = renderAnalisa();
-  else if(view==="stockopname") main.innerHTML = renderStockOpname();
   else main.innerHTML = renderForm();
 
   document.querySelectorAll(".nav button").forEach(b=>{
@@ -1313,7 +1382,6 @@ function attachHandlers(){
 
   if(view==="terima") bindTerima();
   if(view==="analisa") bindAnalisa();
-  if(view==="stockopname") bindStockOpname();
   if(view==="dashboard") bindAjukan();
 
   if(view==="list"){
@@ -1416,10 +1484,10 @@ function bindTerimaHint(formEl){
   upd();
 }
 
-// ---------- Analisa kebutuhan & pengingat ----------
-// Rata-rata kebutuhan/bulan = total Qty PO (tanpa yang Batal) / jumlah bulan periode.
-// Perkiraan habis = tanggal pengajuan terakhir + (qty terakhir / rata-rata per bulan).
-// Qty terakhir memakai Qty Diterima bila sudah dicatat, kalau belum memakai Qty PO.
+// ---------- Analisa kebutuhan & pengingat (dihitung dari hasil Stok Opname tiap bulan) ----------
+// Pemakaian bulan = Stok Awal + Barang Masuk - Hasil SO.
+// Rata-rata pemakaian/bulan = total pemakaian / jumlah bulan SO (periode terpilih).
+// Perkiraan habis = akhir bulan SO terakhir + (stok fisik terakhir / rata-rata pemakaian).
 const DAY_MS = 86400000, MONTH_DAYS = 30.4375;
 function parseYMD(v){
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||""));
@@ -1428,47 +1496,56 @@ function parseYMD(v){
 function toYMD(d){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
-const monthsInclusive = (a,b)=> (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth()) + 1;
 const fmtNum = n => (Number(n)||0).toLocaleString("id-ID",{maximumFractionDigits:1});
 
-function analyzeItems(){
+function parseBulan(v){
+  const m = /^(\d{4})-(\d{2})$/.exec(String(v||""));
+  return m ? new Date(+m[1], +m[2]-1, 1) : null;
+}
+function bulanLabel(v){
+  const d = parseBulan(v);
+  return d ? MONTHS[d.getMonth()] + " " + d.getFullYear() : (v || "-");
+}
+function endOfBulan(v){
+  const d = parseBulan(v);
+  return d ? new Date(d.getFullYear(), d.getMonth()+1, 1) : null;
+}
+
+function analyzeSoItems(){
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const winStart = analysisPeriod > 0 ? new Date(now.getFullYear(), now.getMonth() - (analysisPeriod - 1), 1) : null;
   const groups = new Map();
-  records.forEach(r=>{
-    if(r.status === "Batal") return;
-    const d = parseYMD(r.tglPengajuan);
-    const nama = String(r.namaBarang||"").trim();
-    if(!d || !nama) return;
-    const key = [r.divisi, nama.toLowerCase(), String(r.satuan||"").toLowerCase()].join("|");
+  soRecords.forEach(s=>{
+    const nama = String(s.namaBarang||"").trim();
+    const b = parseBulan(s.bulan);
+    if(!nama || !b) return;
+    const key = [nama.toLowerCase(), String(s.satuan||"").toLowerCase()].join("|");
     let g = groups.get(key);
-    if(!g){ g = {key, divisi:r.divisi, nama, satuan:r.satuan||"", rows:[]}; groups.set(key, g); }
-    g.rows.push({d, qty:Number(r.qty)||0, recv: terimaInfo(r).kind==="belum" ? null : (Number(r.qtyDiterima)||0),
-                 harga:Number(r.estimasiHarga)||0, spec:r.spesifikasi||"", supplier:r.supplier||""});
+    if(!g){ g = {key, nama, satuan:s.satuan||"", rows:[]}; groups.set(key, g); }
+    g.rows.push({b, bulan:s.bulan, pakai: Math.max(0, soStokAkhir(s)), stok: Number(s.hasilSO)||0});
   });
   const out = [];
   groups.forEach(g=>{
-    g.rows.sort((a,b)=> a.d - b.d);
-    const first = g.rows[0].d, last = g.rows[g.rows.length-1];
-    const inWin = winStart ? g.rows.filter(x=>x.d >= winStart) : g.rows;
-    const span = Math.max(1, monthsInclusive(first, now));
-    const months = analysisPeriod > 0 ? Math.max(1, Math.min(analysisPeriod, span)) : span;
-    const total = inWin.reduce((t,x)=> t + x.qty, 0);
+    g.rows.sort((a,b)=> String(a.bulan).localeCompare(String(b.bulan)));
+    const last = g.rows[g.rows.length-1];
+    const inWin = winStart ? g.rows.filter(x=>x.b >= winStart) : g.rows;
+    const months = Math.max(1, inWin.length);
+    const total = inWin.reduce((t,x)=> t + x.pakai, 0);
     const avg = total / months;
-    const lastQty = last.recv != null ? last.recv : last.qty;
     let runout = null, daysLeft = null, status = "data";
-    if(inWin.length >= 2 && avg > 0){          // minimal 2 pengajuan supaya rata-rata bermakna
-      runout = new Date(last.d.getTime() + (lastQty / avg) * MONTH_DAYS * DAY_MS);
+    if(inWin.length >= 2 && avg > 0){          // minimal 2 bulan SO supaya rata-rata bermakna
+      const base = endOfBulan(last.bulan) || last.b;
+      runout = new Date(base.getTime() + (last.stok / avg) * MONTH_DAYS * DAY_MS);
       daysLeft = Math.round((runout - today) / DAY_MS);
       status = daysLeft < 0 ? "terlambat" : daysLeft <= remindLead ? "segera" : "aman";
     }
-    out.push({key:g.key, divisi:g.divisi, nama:g.nama, satuan:g.satuan, count:inWin.length, total, avg, months,
-              last, lastQty, runout, daysLeft, status, spec:last.spec, harga:last.harga, supplier:last.supplier});
+    out.push({key:g.key, divisi:"SO", nama:g.nama, satuan:g.satuan, count:inWin.length, total, avg, months,
+              last, stokSekarang:last.stok, runout, daysLeft, status});
   });
   return out;
 }
-const reminderItems = ()=> analyzeItems().filter(i=>i.status==="terlambat" || i.status==="segera")
+const reminderItems = ()=> analyzeSoItems().filter(i=>i.status==="terlambat" || i.status==="segera")
                                          .sort((a,b)=> a.daysLeft - b.daysLeft);
 
 function rmBadge(it){
@@ -1478,8 +1555,12 @@ function rmBadge(it){
   return `<span class="rm-badge data" title="Perlu minimal 2 pengajuan dalam periode analisa">Data kurang</span>`;
 }
 function ajukanPref(it){
-  return {divisi:it.divisi, namaBarang:it.nama, spesifikasi:it.spec, satuan:it.satuan || "Pcs",
-          estimasiHarga: it.harga || "", supplier:it.supplier, qty: Math.max(1, Math.ceil(it.avg)), keperluan:"Pengajuan ulang"};
+  // harga & supplier diambil dari pengadaan terakhir barang yang sama (kalau ada)
+  const lastRec = records.filter(r=> String(r.namaBarang||"").trim().toLowerCase() === String(it.nama).trim().toLowerCase() && r.status !== "Batal")
+    .sort((a,b)=> String(b.tglPengajuan||"").localeCompare(String(a.tglPengajuan||"")))[0];
+  return {namaBarang:it.nama, satuan:it.satuan || "Pcs", spesifikasi: lastRec ? lastRec.spesifikasi : "",
+          estimasiHarga: lastRec ? lastRec.estimasiHarga : "", supplier: lastRec ? lastRec.supplier : "",
+          qty: Math.max(1, Math.ceil(it.avg)), keperluan:"Pengajuan ulang (analisa SO)"};
 }
 function updateNavBadge(){
   const b = document.getElementById("navBadge");
@@ -1490,7 +1571,7 @@ function updateNavBadge(){
 }
 function bindAjukan(){
   document.querySelectorAll("[data-ajukan]").forEach(b=> b.onclick = ()=>{
-    const it = analyzeItems().find(x=>x.key === b.dataset.ajukan);
+    const it = analyzeSoItems().find(x=>x.key === b.dataset.ajukan);
     if(it) startNewForm(ajukanPref(it));
   });
   const go = document.getElementById("goAnalisa");
@@ -1505,14 +1586,14 @@ function renderRemindPanel(){
     return `<div class="remind-row">
       <div class="rm-main">
         <div class="rm-name">${escapeHtml(it.nama)} <span class="div-chip">${escapeHtml(it.divisi)}</span></div>
-        <div class="rm-sub">Rata-rata ${fmtNum(it.avg)} ${sat}/bulan · diajukan terakhir ${formatTgl(toYMD(it.last.d))} (${fmtNum(it.lastQty)} ${sat}) · perkiraan habis ${formatTgl(toYMD(it.runout))}</div>
+        <div class="rm-sub">Rata-rata pemakaian ${fmtNum(it.avg)} ${sat}/bulan · SO terakhir ${bulanLabel(it.last.bulan)} (stok fisik ${fmtNum(it.stokSekarang)} ${sat}) · perkiraan habis ${it.runout ? formatTgl(toYMD(it.runout)) : "-"}</div>
       </div>
       ${rmBadge(it)}
       <button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(it.key)}">Ajukan</button>
     </div>`;
   }).join("");
   const body = list.length === 0
-    ? `<div class="empty-state">Belum ada item yang perlu diajukan ulang. Item baru dihitung setelah diajukan minimal 2 kali.</div>`
+    ? `<div class="empty-state">${soRecords.length ? "Belum ada item yang perlu diajukan ulang. Item dihitung setelah ada minimal 2 bulan SO." : "Belum ada data Stok Opname. Isi SO tiap bulan di menu Analisa Kebutuhan → tab Stok Opname."}</div>`
     : rows;
   return `
     <div class="panel remind-panel">
@@ -1520,123 +1601,144 @@ function renderRemindPanel(){
         <h2>Pengingat: Perlu Diajukan Ulang <span class="count-chip">${list.length}</span></h2>
         <button type="button" class="link-btn" id="goAnalisa">Lihat analisa lengkap →</button>
       </div>
-      <div class="rm-note">Berdasarkan rata-rata kebutuhan per bulan (${periodTxt}), diingatkan ${remindLead} hari sebelum perkiraan habis.</div>
+      <div class="rm-note">Berdasarkan rata-rata pemakaian per bulan dari hasil Stok Opname (${periodTxt}), diingatkan ${remindLead} hari sebelum perkiraan habis.</div>
       ${body}
       ${list.length > 8 ? `<div class="rm-more">+ ${list.length - 8} item lainnya di halaman Analisa</div>` : ""}
     </div>`;
 }
 
-function soKey(x){return [String(x.divisi||"").toLowerCase(),String(x.namaBarang||"").trim().toLowerCase(),String(x.satuan||"").trim().toLowerCase()].join("|");}
-function monthBounds(ym){const [y,m]=ym.split("-").map(Number);return {start:`${y}-${String(m).padStart(2,"0")}-01`,end:toYMD(new Date(y,m,0))};}
-function computeSOReport(ym){
-  const b=monthBounds(ym), groups=new Map();
-  stockRecords.forEach(x=>{if(!x.tanggal||!x.namaBarang)return;const k=soKey(x);if(!groups.has(k))groups.set(k,{key:k,divisi:x.divisi,namaBarang:x.namaBarang,satuan:x.satuan||"",rows:[]});groups.get(k).rows.push(x);});
-  records.forEach(x=>{if(x.status==="Batal"||!x.namaBarang)return;const k=soKey(x);if(!groups.has(k))groups.set(k,{key:k,divisi:x.divisi,namaBarang:x.namaBarang,satuan:x.satuan||"",rows:[]});});
-  const out=[];
-  groups.forEach(g=>{
-    const rows=g.rows.slice().sort((a,b)=>String(a.tanggal).localeCompare(String(b.tanggal)));
-    // SO pada tanggal 1 dapat dipakai sebagai stok awal; stok akhir harus berasal dari SO yang lebih baru.
-    const opening=rows.filter(x=>x.tanggal<=b.start).slice(-1)[0];
-    const closing=rows.filter(x=>x.tanggal<=b.end&&(!opening||x.tanggal>opening.tanggal)).slice(-1)[0];
-    const masuk=records.filter(x=>x.status!=="Batal"&&soKey(x)===g.key&&x.tglDiterima>=b.start&&x.tglDiterima<=b.end).reduce((sum,x)=>{
-      if(x.qtyDiterima!==""&&x.qtyDiterima!=null)return sum+(Number(x.qtyDiterima)||0);
-      return sum+(x.tglDiterima?(Number(x.qty)||0):0);
-    },0);
-    const harga=rows.filter(x=>x.hargaSatuan>0).slice(-1)[0]?.hargaSatuan || records.filter(x=>soKey(x)===g.key&&Number(x.estimasiHarga)>0).slice(-1)[0]?.estimasiHarga || 0;
-    const openingQty=opening?Number(opening.qtyFisik)||0:null, closingQty=closing&&closing.tanggal>=b.start?Number(closing.qtyFisik)||0:null;
-    const usage=(openingQty!==null&&closingQty!==null)?openingQty+masuk-closingQty:null;
-    if(rows.length||masuk>0)out.push({...g,opening,closing,openingQty,closingQty,masuk,usage,harga,nilai:usage===null?null:usage*harga});
-  });
-  return out.sort((a,b)=>String(a.divisi).localeCompare(String(b.divisi))||String(a.namaBarang).localeCompare(String(b.namaBarang)));
-}
-function renderStockOpname(){
-  const report=computeSOReport(soMonth), all=stockRecords.slice().sort((a,b)=>String(b.tanggal).localeCompare(String(a.tanggal)));
-  const usageRows=report.filter(x=>x.usage!==null);
-  const totalUsage=usageRows.reduce((s,x)=>s+x.usage,0), totalValue=usageRows.reduce((s,x)=>s+(x.nilai||0),0);
-  const monthName=new Date(Number(soMonth.slice(0,4)),Number(soMonth.slice(5,7))-1,1).toLocaleDateString("id-ID",{month:"long",year:"numeric"});
-  const reportHTML=report.length?report.map(x=>`<tr><td>${escapeHtml(x.divisi)}</td><td><strong>${escapeHtml(x.namaBarang)}</strong></td><td>${escapeHtml(x.satuan)}</td><td>${x.openingQty===null?"—":fmtNum(x.openingQty)}</td><td>${fmtNum(x.masuk)}</td><td>${x.closingQty===null?"—":fmtNum(x.closingQty)}</td><td>${x.usage===null?'<span style="color:var(--muted)">Butuh SO awal & akhir</span>':fmtNum(x.usage)}</td><td>${x.nilai===null?"—":formatRupiah(x.nilai)}</td></tr>`).join(""):'<tr><td colspan="8" class="empty-state">Belum ada data SO atau penerimaan barang untuk bulan ini.</td></tr>';
-  const historyHTML=all.length?all.map(x=>`<tr><td>${escapeHtml(x.tanggal)}</td><td>${escapeHtml(x.divisi)}</td><td><strong>${escapeHtml(x.namaBarang)}</strong><div class="sub-text">${escapeHtml(x.catatan||"")}</div></td><td>${escapeHtml(x.satuan)}</td><td>${fmtNum(x.qtyFisik)}</td><td>${x.hargaSatuan?formatRupiah(x.hargaSatuan):"—"}</td><td><button class="btn-outline" type="button" data-delete-so="${escapeHtml(x.id)}">Hapus</button></td></tr>`).join(""):'<tr><td colspan="7" class="empty-state">Belum ada riwayat Stock Opname.</td></tr>';
-  const itemOptions=[...new Map(records.filter(x=>x.status!=="Batal"&&x.namaBarang).map(x=>[soKey(x),{namaBarang:x.namaBarang,divisi:x.divisi,satuan:x.satuan,hargaSatuan:x.estimasiHarga}])).values()];
-  return `<div class="page-header"><div><h1>Stock Opname & Pemakaian</h1><p>Catat stok fisik dan hitung estimasi pemakaian bulanan per item dan divisi.</p></div></div>
-  <div class="so-grid"><section class="panel"><h2>INPUT STOCK OPNAME</h2><form id="soForm" class="so-form">
-    <div class="field"><label for="soTanggal">Tanggal SO</label><input type="date" id="soTanggal" required value="${todayISO()}"></div>
-    <div class="field"><label for="soDivisi">Divisi</label><select id="soDivisi" required><option>GA</option><option>Purchasing</option></select></div>
-    <div class="field"><label for="soNama">Nama barang</label><input id="soNama" list="soItemList" required placeholder="Pilih atau ketik nama barang"><datalist id="soItemList">${itemOptions.map(x=>`<option value="${escapeHtml(x.namaBarang)}"></option>`).join("")}</datalist></div>
-    <div class="field"><label for="soSatuan">Satuan</label><input id="soSatuan" required placeholder="Pcs, Box, Kg, dll."></div>
-    <div class="field"><label for="soQty">Qty fisik hasil hitung</label><input id="soQty" type="number" min="0" step="any" required placeholder="0"></div>
-    <div class="field"><label for="soHarga">Harga satuan (Rp, opsional)</label><input id="soHarga" type="number" min="0" step="any" placeholder="Isi jika ingin nilai pemakaian"></div>
-    <div class="field"><label for="soCatatan">Catatan / kondisi</label><textarea id="soCatatan" rows="2" placeholder="Opsional"></textarea></div>
-    <button class="btn-accent" type="submit">Simpan Stock Opname</button>
-    <p class="so-note">Catat stok pada awal dan akhir periode agar pemakaian dapat dihitung. Jika barang sama dikelola terpisah oleh GA dan Purchasing, catat pada divisi masing-masing.</p>
-  </form></section>
-  <section class="panel"><h2>LAPORAN PEMAKAIAN BULANAN</h2><div class="so-actions"><label for="soMonth">Periode:</label><input type="month" id="soMonth" value="${soMonth}"><button class="btn-outline" id="soExport" type="button">Export Excel</button></div>
-  <div class="so-kpis"><div class="so-kpi"><small>Item dengan perhitungan lengkap</small><strong>${usageRows.length}</strong></div><div class="so-kpi"><small>Total pemakaian (akumulasi qty)</small><strong>${fmtNum(totalUsage)}</strong></div><div class="so-kpi"><small>Estimasi nilai pemakaian</small><strong>${formatRupiah(totalValue)}</strong></div></div>
-  <div class="table-wrap"><table><thead><tr><th>Divisi</th><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Stok Akhir</th><th>Pemakaian</th><th>Nilai Pemakaian</th></tr></thead><tbody>${reportHTML}</tbody></table></div>
-  <p class="so-note">Perhitungan: stok awal + barang diterima selama bulan tersebut − stok akhir. Stok awal adalah SO terakhir sebelum awal bulan; stok akhir adalah SO terakhir pada bulan yang dipilih. Nilai pemakaian menggunakan harga satuan SO atau estimasi harga pengadaan sebagai fallback.</p></section></div>
-  <section class="panel"><h2>RIWAYAT STOCK OPNAME</h2><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Divisi</th><th>Nama Barang / Catatan</th><th>Satuan</th><th>Qty Fisik</th><th>Harga Satuan</th><th>Aksi</th></tr></thead><tbody>${historyHTML}</tbody></table></div></section>`;
-}
-function bindStockOpname(){
-  const formEl=document.getElementById("soForm");
-  const nama=document.getElementById("soNama"), divisi=document.getElementById("soDivisi"), satuan=document.getElementById("soSatuan"), harga=document.getElementById("soHarga");
-  if(nama)nama.addEventListener("change",()=>{const match=records.find(x=>x.namaBarang.toLowerCase()===nama.value.trim().toLowerCase()&&x.divisi===divisi.value);if(match){if(!satuan.value)satuan.value=match.satuan||"";if(!harga.value)harga.value=match.estimasiHarga||"";}});
-  if(formEl)formEl.onsubmit=async e=>{e.preventDefault();const rec=normSO({id:idFor(),tanggal:document.getElementById("soTanggal").value,divisi:divisi.value,namaBarang:nama.value.trim(),satuan:satuan.value.trim(),qtyFisik:document.getElementById("soQty").value,hargaSatuan:harga.value,catatan:document.getElementById("soCatatan").value.trim()});if(!rec.tanggal||!rec.namaBarang||!rec.satuan){alert("Tanggal, nama barang, dan satuan wajib diisi.");return;}try{await saveSOOnline(rec);render();}catch(err){alert("Gagal menyimpan Stock Opname: "+err.message);}};
-  const month=document.getElementById("soMonth");if(month)month.onchange=e=>{soMonth=e.target.value||soMonth;render();};
-  const exp=document.getElementById("soExport");if(exp)exp.onclick=()=>{const rows=computeSOReport(soMonth).map(x=>({Divisi:x.divisi,NamaBarang:x.namaBarang,Satuan:x.satuan,StokAwal:x.openingQty??"",BarangMasuk:x.masuk,StokAkhir:x.closingQty??"",Pemakaian:x.usage??"",EstimasiNilai:x.nilai??""}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Pemakaian Bulanan");XLSX.writeFile(wb,`stock-opname-${soMonth}.xlsx`);};
-  document.querySelectorAll("[data-delete-so]").forEach(btn=>btn.onclick=async()=>{if(!confirm("Hapus catatan Stock Opname ini?"))return;try{await deleteSOOnline(btn.dataset.deleteSo);render();}catch(err){alert("Gagal menghapus SO: "+err.message);}});
-}
-
 function renderAnalisa(){
-  const items = analyzeItems();
-  const q = analisaSearch.trim().toLowerCase();
-  const periodOpts = [[3,"3 bulan terakhir"],[6,"6 bulan terakhir"],[12,"12 bulan terakhir"],[0,"Semua data"]]
-    .map(([v,t])=>`<option value="${v}" ${analysisPeriod===v?"selected":""}>${t}</option>`).join("");
-  const leadOpts = [7,14,30].map(d=>`<option value="${d}" ${remindLead===d?"selected":""}>Ingatkan ${d} hari sebelum habis</option>`).join("");
-  const nRemind = items.filter(i=>i.status==="terlambat"||i.status==="segera").length;
-
-  const section = (div)=>{
-    const all = items.filter(i=>i.divisi === div);
-    const list = all.filter(i=> !q || i.nama.toLowerCase().includes(q)).sort((a,b)=> b.avg - a.avg);
-    const maxAvg = Math.max(0.0001, ...list.map(i=>i.avg));
-    const body = list.length === 0
-      ? `<div class="empty-state">${all.length ? "Tidak ada item yang cocok dengan pencarian." : "Belum ada data untuk divisi ini."}</div>`
-      : `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Jml Pengajuan</th><th>Total Diminta</th><th>Rata-rata / Bulan</th><th>Pengajuan Terakhir</th><th>Perkiraan Habis</th><th>Status</th><th></th></tr></thead><tbody>
-        ${list.map(i=>`<tr>
-          <td>${escapeHtml(i.nama)}</td>
-          <td>${escapeHtml(i.satuan)}</td>
-          <td>${i.count}×</td>
-          <td>${fmtNum(i.total)}</td>
-          <td><b>${fmtNum(i.avg)}</b><div class="avg-bar"><i style="width:${Math.round(i.avg/maxAvg*100)}%"></i></div></td>
-          <td>${formatTgl(toYMD(i.last.d))}<div class="sub-text">${fmtNum(i.lastQty)} ${escapeHtml(i.satuan)}</div></td>
-          <td>${i.runout ? formatTgl(toYMD(i.runout)) : '<span class="muted-dash">–</span>'}</td>
-          <td>${rmBadge(i)}</td>
-          <td>${(i.status==="terlambat"||i.status==="segera") ? `<button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button>` : ""}</td>
-        </tr>`).join("")}
-      </tbody></table>`;
-    return `<h2 class="sub-title">${escapeHtml(div)} <span class="count-chip">${all.length} item</span></h2><div class="table-wrap">${body}</div>`;
-  };
-
+  const nRemind = reminderItems().length;
   return `
     <div class="page-header">
       <div>
         <h1>Analisa Kebutuhan</h1>
-        <p>Rata-rata kebutuhan tiap item per bulan, dipisah GA dan Purchasing. ${nRemind ? `<b class="rm-inline">${nRemind} item perlu diajukan ulang.</b>` : "Belum ada item yang perlu diajukan ulang."}</p>
+        <p>Rata-rata pemakaian tiap item per bulan, dihitung dari hasil Stok Opname (SO). ${nRemind ? `<b class="rm-inline">${nRemind} item perlu diajukan ulang.</b>` : "Belum ada item yang perlu diajukan ulang."}</p>
       </div>
       <div class="header-actions">
         ${themeToggleHTML()}
         <button class="btn-outline" id="btnExportAnalisa">⬇ Export Excel</button>
       </div>
     </div>
+    <div class="tab-bar">
+      <button type="button" class="tab-btn ${analisaTab==="analisa"?"active":""}" data-analisa-tab="analisa">📊 Analisa Kebutuhan</button>
+      <button type="button" class="tab-btn ${analisaTab==="so"?"active":""}" data-analisa-tab="so">📋 Stok Opname (SO) <span class="count-chip">${soRecords.length}</span></button>
+    </div>
+    ${analisaTab === "so" ? renderSoTab() : renderAnalisaTab()}
+  `;
+}
+
+function renderAnalisaTab(){
+  const items = analyzeSoItems();
+  const q = analisaSearch.trim().toLowerCase();
+  const periodOpts = [[3,"3 bulan terakhir"],[6,"6 bulan terakhir"],[12,"12 bulan terakhir"],[0,"Semua data"]]
+    .map(([v,t])=>`<option value="${v}" ${analysisPeriod===v?"selected":""}>${t}</option>`).join("");
+  const leadOpts = [7,14,30].map(d=>`<option value="${d}" ${remindLead===d?"selected":""}>Ingatkan ${d} hari sebelum habis</option>`).join("");
+
+  const list = items.filter(i=> !q || i.nama.toLowerCase().includes(q)).sort((a,b)=> b.avg - a.avg);
+  const maxAvg = Math.max(0.0001, ...list.map(i=>i.avg));
+  const body = soRecords.length === 0
+    ? `<div class="empty-state">Belum ada data Stok Opname. Buka tab <b>📋 Stok Opname (SO)</b> di atas untuk mengisi SO tiap bulan — analisa kebutuhan dihitung dari data tersebut.</div>`
+    : (list.length === 0
+      ? `<div class="empty-state">Tidak ada item yang cocok dengan pencarian.</div>`
+      : `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Jml SO</th><th>Total Pemakaian</th><th>Rata-rata / Bulan</th><th>SO Terakhir</th><th>Stok Fisik</th><th>Perkiraan Habis</th><th>Status</th><th></th></tr></thead><tbody>
+        ${list.map(i=>`<tr>
+          <td>${escapeHtml(i.nama)}</td>
+          <td>${escapeHtml(i.satuan)}</td>
+          <td>${i.count}×</td>
+          <td>${fmtNum(i.total)}</td>
+          <td><b>${fmtNum(i.avg)}</b><div class="avg-bar"><i style="width:${Math.round(i.avg/maxAvg*100)}%"></i></div></td>
+          <td>${bulanLabel(i.last.bulan)}<div class="sub-text">stok fisik ${fmtNum(i.stokSekarang)} ${escapeHtml(i.satuan)}</div></td>
+          <td>${fmtNum(i.stokSekarang)} ${escapeHtml(i.satuan)}</td>
+          <td>${i.runout ? formatTgl(toYMD(i.runout)) : '<span class="muted-dash">–</span>'}</td>
+          <td>${rmBadge(i)}</td>
+          <td>${(i.status==="terlambat"||i.status==="segera") ? `<button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button>` : ""}</td>
+        </tr>`).join("")}
+      </tbody></table>`);
+
+  return `
     <div class="analisa-controls">
       <div class="search-box">🔍 <input id="analisaSearch" placeholder="Cari nama barang..." value="${escapeHtml(analisaSearch)}"></div>
       <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
       <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
     </div>
-    <div class="rm-note">Rata-rata/bulan = total Qty PO ÷ jumlah bulan periode (pengadaan Batal tidak dihitung). Perkiraan habis = tanggal pengajuan terakhir + (jumlah terakhir ÷ rata-rata/bulan). Butuh minimal 2 pengajuan per item.</div>
-    ${DIVISI_LIST.map(section).join("")}
+    <div class="rm-note">Pemakaian/bulan = Stok Awal + Barang Masuk − Hasil SO. Rata-rata/bulan = total pemakaian ÷ jumlah bulan SO dalam periode terpilih. Perkiraan habis = akhir bulan SO terakhir + (stok fisik terakhir ÷ rata-rata pemakaian). Butuh minimal 2 bulan SO per barang.</div>
+    <div class="table-wrap">${body}</div>
+  `;
+}
+
+// ---------- Tab Stok Opname (SO) ----------
+function emptySoForm(){
+  const now = new Date();
+  return {id:"", bulan: now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0"),
+          namaBarang:"", satuan:"Pcs", stokAwal:"", barangMasuk:"", hasilSO:"", keterangan:""};
+}
+function renderSoTab(){
+  const f = soForm || emptySoForm();
+  const satuanOpts = SATUAN_LIST.map(s=>`<option ${f.satuan===s?"selected":""}>${s}</option>`).join("");
+  const names = [...new Set([...soRecords.map(s=>s.namaBarang), ...records.map(r=>r.namaBarang)].filter(Boolean))];
+  const nameList = names.map(n=>`<option value="${escapeHtml(n)}">`).join("");
+  const q = soSearch.trim().toLowerCase();
+  const list = soRecords.filter(s=> !q || `${s.namaBarang} ${s.bulan} ${s.keterangan||""}`.toLowerCase().includes(q))
+    .sort((a,b)=> String(b.bulan).localeCompare(String(a.bulan)) || String(a.namaBarang).localeCompare(String(b.namaBarang)));
+  const rowsHtml = list.length === 0
+    ? `<div class="empty-state">Belum ada data SO. Isi form di atas untuk mencatat Stok Opname tiap bulan.</div>`
+    : `<table><thead><tr>
+        <th>Bulan SO</th><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO</th><th>Stok Akhir (→ Stok Awal Berikutnya)</th><th>Keterangan</th><th></th>
+      </tr></thead><tbody>
+      ${list.map(s=>{
+        const akhir = soStokAkhir(s);
+        return `<tr>
+          <td>${bulanLabel(s.bulan)}</td>
+          <td>${escapeHtml(s.namaBarang)}</td>
+          <td>${escapeHtml(s.satuan)}</td>
+          <td>${fmtNum(s.stokAwal)}</td>
+          <td>${fmtNum(s.barangMasuk)}</td>
+          <td>${fmtNum(s.hasilSO)}</td>
+          <td><b class="${akhir < 0 ? "so-akhir neg" : ""}">${fmtNum(akhir)}</b> ${escapeHtml(s.satuan)}</td>
+          <td>${escapeHtml(s.keterangan||"")}</td>
+          <td><div class="row-actions">
+            <button data-so-edit="${s.id}" title="Edit SO">✎</button>
+            <button data-so-del="${s.id}" title="Hapus SO">🗑</button>
+          </div></td>
+        </tr>`;
+      }).join("")}
+      </tbody></table>`;
+  return `
+    <div class="so-form-wrap">
+      <div class="section">
+        <h3>${soEditingId ? "Ubah Stok Opname" : "Tambah Stok Opname"}</h3>
+        <form id="soForm" autocomplete="off">
+          <div class="field-grid">
+            <label class="field"><span>Bulan SO <span class="req">*</span></span><input type="month" name="bulan" value="${escapeHtml(f.bulan)}" required></label>
+            <label class="field"><span>Nama Barang <span class="req">*</span></span><input name="namaBarang" list="soNameList" value="${escapeHtml(f.namaBarang)}" required><datalist id="soNameList">${nameList}</datalist></label>
+            <label class="field"><span>Satuan</span><select name="satuan">${satuanOpts}</select></label>
+            <label class="field"><span>Stok Awal <span class="req">*</span></span><input type="number" min="0" name="stokAwal" value="${escapeHtml(f.stokAwal)}" required>
+              <span class="terima-note"><button type="button" class="link-btn" id="soAmbilAwal">Ambil dari SO sebelumnya</button></span></label>
+            <label class="field"><span>Barang Masuk</span><input type="number" min="0" name="barangMasuk" value="${escapeHtml(f.barangMasuk)}" placeholder="0"></label>
+            <label class="field"><span>Hasil SO / Stok Fisik <span class="req">*</span></span><input type="number" min="0" name="hasilSO" value="${escapeHtml(f.hasilSO)}" required></label>
+            <label class="field"><span>Keterangan</span><input name="keterangan" value="${escapeHtml(f.keterangan)}"></label>
+            <label class="field"><span>Stok Akhir → Stok Awal Bulan Berikutnya</span><input id="soAkhirDisplay" readonly>
+              <span class="so-akhir" id="soAkhirNote"></span></label>
+          </div>
+          <div class="form-actions" style="margin-top:16px;">
+            <button type="submit" class="btn-accent">${soEditingId ? "Simpan Perubahan" : "Simpan SO"}</button>
+            <button type="button" class="btn-plain" id="soReset">${soEditingId ? "Batal Edit" : "Reset"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="analisa-controls">
+      <div class="search-box">🔍 <input id="soSearch" placeholder="Cari barang / bulan SO..." value="${escapeHtml(soSearch)}"></div>
+    </div>
+    <div class="rm-note">Rumus: <b>Stok Akhir = Stok Awal + Barang Masuk − Hasil SO</b>. Stok akhir otomatis menjadi stok awal bulan selanjutnya (klik "Ambil dari SO sebelumnya" atau biarkan stok awal kosong saat tambah SO baru).</div>
+    <div class="table-wrap">${rowsHtml}</div>
   `;
 }
 
 function bindAnalisa(){
+  document.querySelectorAll("[data-analisa-tab]").forEach(b=> b.onclick = ()=>{ analisaTab = b.dataset.analisaTab; render(); });
+  if(analisaTab === "so"){ bindSoTab(); return; }
   const per = document.getElementById("analisaPeriod"), lead = document.getElementById("analisaLead");
   if(per) per.onchange = (e)=>{ analysisPeriod = Number(e.target.value); render(); };
   if(lead) lead.onchange = (e)=>{ remindLead = Number(e.target.value); render(); };
@@ -1653,28 +1755,101 @@ function bindAnalisa(){
   bindAjukan();
 }
 
+function bindSoTab(){
+  const f = document.getElementById("soForm");
+  if(!f) return;
+  const el = n => f.elements[n];
+  const akhirEl = document.getElementById("soAkhirDisplay"), note = document.getElementById("soAkhirNote");
+  const updAkhir = ()=>{
+    const a = (Number(el("stokAwal").value)||0) + (Number(el("barangMasuk").value)||0) - (Number(el("hasilSO").value)||0);
+    akhirEl.value = fmtNum(a) + " " + el("satuan").value;
+    note.innerHTML = a < 0
+      ? '<span class="neg">Hasil SO lebih besar dari Stok Awal + Barang Masuk — periksa kembali.</span>'
+      : `Stok Awal + Barang Masuk − Hasil SO = <b class="pos">${fmtNum(a)}</b>`;
+  };
+  ["stokAwal","barangMasuk","hasilSO"].forEach(n=> el(n).addEventListener("input", updAkhir));
+  el("satuan").addEventListener("change", updAkhir);
+  updAkhir();
+
+  // Stok awal otomatis: ambil stok akhir SO bulan sebelumnya (jika stok awal masih kosong)
+  const autoFill = ()=>{
+    if(el("stokAwal").value !== "") return;
+    const prev = soPrev(el("namaBarang").value, el("satuan").value, el("bulan").value);
+    if(prev){ el("stokAwal").value = soStokAkhir(prev); updAkhir(); }
+  };
+  el("bulan").addEventListener("change", autoFill);
+  el("namaBarang").addEventListener("change", autoFill);
+  el("satuan").addEventListener("change", autoFill);
+  const ambil = document.getElementById("soAmbilAwal");
+  if(ambil) ambil.onclick = ()=>{
+    const prev = soPrev(el("namaBarang").value, el("satuan").value, el("bulan").value);
+    if(!prev){ note.innerHTML = '<span class="neg">Belum ada SO sebelumnya untuk barang ini.</span>'; return; }
+    el("stokAwal").value = soStokAkhir(prev);
+    updAkhir();
+  };
+  document.getElementById("soReset").onclick = ()=>{ soEditingId = null; soForm = null; render(); };
+
+  f.onsubmit = (e)=>{
+    e.preventDefault();
+    if(!el("namaBarang").value.trim() || !el("bulan").value || el("hasilSO").value === "" || el("stokAwal").value === "") return;
+    const rec = normSo({
+      id: soEditingId || idFor(),
+      bulan: el("bulan").value,
+      namaBarang: el("namaBarang").value.trim(),
+      satuan: el("satuan").value,
+      stokAwal: Number(el("stokAwal").value)||0,
+      barangMasuk: el("barangMasuk").value === "" ? 0 : (Number(el("barangMasuk").value)||0),
+      hasilSO: Number(el("hasilSO").value)||0,
+      keterangan: el("keterangan").value
+    });
+    saveStart(false);
+    saveSoOnline(rec)
+      .then(()=>{ soEditingId = null; soForm = null; saveDone("SO TERSIMPAN"); render(); })
+      .catch(err=>{ saveFail(); alert("Gagal menyimpan SO: " + err.message); });
+  };
+
+  document.querySelectorAll("[data-so-edit]").forEach(b=> b.onclick = ()=>{
+    const s = soRecords.find(x=>x.id === b.dataset.soEdit);
+    if(!s) return;
+    soEditingId = s.id;
+    soForm = {...s};
+    render();
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+  document.querySelectorAll("[data-so-del]").forEach(b=> b.onclick = ()=>{
+    const s = soRecords.find(x=>x.id === b.dataset.soDel);
+    if(!s) return;
+    if(!confirm(`Hapus SO ${s.namaBarang} — ${bulanLabel(s.bulan)}?`)) return;
+    deleteSoOnline(b.dataset.soDel)
+      .then(()=> render())
+      .catch(err=> alert("Gagal menghapus SO: " + err.message));
+  });
+  const sb = document.getElementById("soSearch");
+  if(sb) sb.oninput = (e)=>{
+    soSearch = e.target.value;
+    const pos = e.target.selectionStart;
+    render();
+    const elx = document.getElementById("soSearch");
+    if(elx){ elx.focus({preventScroll:true}); elx.selectionStart = elx.selectionEnd = pos; }
+  };
+}
+
 function exportAnalisa(){
   if(typeof XLSX === "undefined"){ alert("Library Excel belum siap, coba lagi sebentar."); return; }
-  const items = analyzeItems();
+  const items = analyzeSoItems();
+  if(soRecords.length === 0){ alert("Belum ada data SO untuk dianalisa."); return; }
+  const rows = items.sort((a,b)=> b.avg - a.avg).map(i=>({
+    "Nama Barang": i.nama, "Satuan": i.satuan, "Jumlah Bulan SO": i.count, "Total Pemakaian": i.total,
+    "Rata-rata Pemakaian per Bulan": Math.round(i.avg*100)/100,
+    "SO Terakhir": bulanLabel(i.last.bulan), "Stok Fisik Terakhir": i.stokSekarang,
+    "Perkiraan Habis": i.runout ? formatTgl(toYMD(i.runout)) : "",
+    "Status": i.status==="terlambat" ? "Terlambat "+(-i.daysLeft)+" hari" : i.status==="segera" ? i.daysLeft+" hari lagi (segera ajukan)" : i.status==="aman" ? "Aman ("+i.daysLeft+" hari lagi)" : "Data kurang (minimal 2 bulan SO)"
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [{wch:28},{wch:10},{wch:16},{wch:16},{wch:24},{wch:16},{wch:18},{wch:18},{wch:30}];
   const wb = XLSX.utils.book_new();
-  let any = false;
-  DIVISI_LIST.forEach(div=>{
-    const rows = items.filter(i=>i.divisi === div).sort((a,b)=> b.avg - a.avg).map(i=>({
-      "Nama Barang": i.nama, "Satuan": i.satuan, "Jumlah Pengajuan": i.count, "Total Diminta": i.total,
-      "Rata-rata per Bulan": Math.round(i.avg*100)/100,
-      "Pengajuan Terakhir": formatTgl(toYMD(i.last.d)), "Qty Terakhir": i.lastQty,
-      "Perkiraan Habis": i.runout ? formatTgl(toYMD(i.runout)) : "",
-      "Status": i.status==="terlambat" ? "Terlambat "+(-i.daysLeft)+" hari" : i.status==="segera" ? i.daysLeft+" hari lagi (segera ajukan)" : i.status==="aman" ? "Aman ("+i.daysLeft+" hari lagi)" : "Data kurang"
-    }));
-    if(rows.length){
-      any = true;
-      const ws = XLSX.utils.json_to_sheet(rows);
-      ws["!cols"] = [{wch:28},{wch:10},{wch:16},{wch:14},{wch:18},{wch:18},{wch:14},{wch:18},{wch:28}];
-      XLSX.utils.book_append_sheet(wb, ws, div);
-    }
-  });
-  if(!any){ alert("Belum ada data untuk dianalisa."); return; }
-  XLSX.writeFile(wb, `analisa-kebutuhan-${todayISO()}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, "Analisa SO");
+  XLSX.writeFile(wb, `analisa-kebutuhan-so-${todayISO()}.xlsx`);
 }
 
 // ---------- Menu Tambah Penerimaan ----------
@@ -2113,6 +2288,7 @@ if(onlineMode()){
   loadRecordsOnline().then(startAutoSync);
 }else{
   loadRecords();
+  loadSoLocal();
   render();
   showSyncStatus("Mode lokal — isi API_URL untuk sinkron HP ↔ PC");
 }
