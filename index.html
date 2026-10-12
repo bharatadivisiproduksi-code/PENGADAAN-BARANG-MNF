@@ -291,6 +291,32 @@
 
   /* Form halaman penuh: selebar area konten (sampai tepi kanan) */
   #pengadaanForm,#terimaForm{max-width:none;}
+
+  /* ===== Analisa & pengingat ===== */
+  .nav-badge{position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#FFD23F;color:#3A2A00;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px rgba(10,20,60,.55);}
+  .nav-badge[hidden]{display:none;}
+  .analisa-controls{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;}
+  .rm-note{color:var(--muted);font-size:12.5px;margin-bottom:14px;line-height:1.5;}
+  .rm-inline{color:var(--accent-deep);}
+  .count-chip{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;background:var(--paper-deep);color:var(--muted);font-family:system-ui,sans-serif;font-size:12px;font-weight:600;vertical-align:middle;}
+  .div-chip{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:6px;background:var(--paper-deep);color:var(--muted);font-size:11px;font-weight:700;}
+  .avg-bar{height:5px;border-radius:4px;background:var(--paper-deep);margin-top:5px;width:110px;overflow:hidden;}
+  .avg-bar i{display:block;height:100%;background:var(--grad);border-radius:4px;}
+  .rm-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .rm-badge.terlambat{color:#D7263D;background:rgba(215,38,61,.12);}
+  .rm-badge.segera{color:#B5760B;background:rgba(224,154,26,.18);}
+  .rm-badge.aman{color:#1B8A5A;background:rgba(31,163,107,.14);}
+  .rm-badge.data{color:var(--muted);background:var(--paper-deep);}
+  .rm-btn{padding:6px 12px !important;font-size:12.5px !important;}
+  .remind-panel{margin-top:16px;}
+  .remind-panel h2{margin:0;}
+  .remind-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;}
+  .remind-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--line);}
+  .rm-main{flex:1;min-width:0;}
+  .rm-name{font-weight:600;font-size:14px;}
+  .rm-sub{color:var(--muted);font-size:12px;margin-top:3px;line-height:1.45;}
+  .rm-more{color:var(--muted);font-size:12px;padding-top:10px;border-top:1px solid var(--line);}
+  @media (max-width:700px){.remind-row{flex-wrap:wrap;}}
 </style>
 </head>
 <body>
@@ -315,6 +341,7 @@
       <button data-view="form" data-tip="Tambah Permintaan" aria-label="Tambah Permintaan"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1B2433" d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg></button>
       <button data-view="terima" data-tip="Tambah Penerimaan" aria-label="Tambah Penerimaan"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1F4FC2" d="M3 13h5l1.5 2.5h5L16 13h5v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path fill="none" stroke="#1FA36B" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3v8m0 0L8.5 7.5M12 11l3.5-3.5"/></svg></button>
       <button data-view="list" data-tip="Laporan Permintaan" aria-label="Laporan Permintaan"><img alt="" src="data:image/png;base64,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"></button>
+      <button data-view="analisa" data-tip="Analisa Kebutuhan" aria-label="Analisa Kebutuhan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="12" width="4.4" height="9" rx="1.2" fill="#1F4FC2"/><rect x="9.8" y="7" width="4.4" height="14" rx="1.2" fill="#7B3FB5"/><rect x="16.6" y="3" width="4.4" height="18" rx="1.2" fill="#D7263D"/></svg><span class="nav-badge" id="navBadge" hidden></span></button>
     </nav>
     <div class="sidebar-footer">
       <span id="recordCountLabel">0</span> catatan tersimpan
@@ -578,6 +605,9 @@ let search = "";
 let filterDivisi = "Semua";
 let filterStatus = "Semua";
 let filterTerima = "Semua";
+let analysisPeriod = 12;   // bulan yang dihitung; 0 = semua data
+let remindLead = 14;       // ingatkan N hari sebelum perkiraan habis
+let analisaSearch = "";
 let filterBulan = "Semua";
 let statBulan = "Semua";
 let chartInstance = null;
@@ -593,7 +623,10 @@ let pendingScrollY = 0;
   try{
     const u = JSON.parse(sessionStorage.getItem(UI_KEY) || "null");
     if(!u) return;
-    if(u.view === "dashboard" || u.view === "list" || u.view === "terima") view = u.view;
+    if(u.view === "dashboard" || u.view === "list" || u.view === "terima" || u.view === "analisa") view = u.view;
+    if([0,3,6,12].includes(u.analysisPeriod)) analysisPeriod = u.analysisPeriod;
+    if([7,14,30].includes(u.remindLead)) remindLead = u.remindLead;
+    if(typeof u.analisaSearch === "string") analisaSearch = u.analisaSearch;
     if(u.filterDivisi) filterDivisi = u.filterDivisi;
     if(u.filterStatus) filterStatus = u.filterStatus;
     if(u.filterTerima) filterTerima = u.filterTerima;
@@ -611,7 +644,7 @@ function saveUI(){
     const main = document.getElementById("mainContent");
     const y = pendingScrollY || Math.max(window.scrollY || 0, main ? main.scrollTop : 0);
     sessionStorage.setItem(UI_KEY, JSON.stringify({
-      view:v, filterDivisi, filterStatus, filterTerima, filterBulan, statBulan, search, visibleCount, scrollY:y
+      view:v, analysisPeriod, remindLead, analisaSearch, filterDivisi, filterStatus, filterTerima, filterBulan, statBulan, search, visibleCount, scrollY:y
     }));
   }catch(e){}
 }
@@ -796,8 +829,10 @@ function setView(v){
   });
   render();
 }
-function openNewForm(){
-  form = emptyForm();
+function openNewForm(){ startNewForm(null); }
+// pref = isian awal (dipakai tombol "Ajukan" dari pengingat)
+function startNewForm(pref){
+  form = {...emptyForm(), ...(pref || {})};
   form.id = idFor();
   editingId = null;
   proofState = newProofState([]);
@@ -819,12 +854,14 @@ function render(){
   if(view==="dashboard") main.innerHTML = renderDashboard();
   else if(view==="list") main.innerHTML = renderList();
   else if(view==="terima") main.innerHTML = renderTerima();
+  else if(view==="analisa") main.innerHTML = renderAnalisa();
   else main.innerHTML = renderForm();
 
   document.querySelectorAll(".nav button").forEach(b=>{
     b.classList.toggle("active", b.dataset.view===view);
   });
   attachHandlers();
+  updateNavBadge();
   if(view==="dashboard") drawChart();
   if(pendingScrollY){
     const y = pendingScrollY; pendingScrollY = 0;
@@ -885,6 +922,7 @@ function renderDashboard(){
         <div style="height:240px;"><canvas id="monthlyChart"></canvas></div>
       </div>
     </div>
+    ${renderRemindPanel()}
   `;
 }
 
@@ -1234,6 +1272,8 @@ function attachHandlers(){
   }
 
   if(view==="terima") bindTerima();
+  if(view==="analisa") bindAnalisa();
+  if(view==="dashboard") bindAjukan();
 
   if(view==="list"){
     const searchInput = document.getElementById("searchInput");
@@ -1333,6 +1373,208 @@ function bindTerimaHint(formEl){
   q.addEventListener("input", upd); t.addEventListener("input", upd);
   if(fill) fill.onclick = ()=>{ t.value = q.value; upd(); t.focus({preventScroll:true}); };
   upd();
+}
+
+// ---------- Analisa kebutuhan & pengingat ----------
+// Rata-rata kebutuhan/bulan = total Qty PO (tanpa yang Batal) / jumlah bulan periode.
+// Perkiraan habis = tanggal pengajuan terakhir + (qty terakhir / rata-rata per bulan).
+// Qty terakhir memakai Qty Diterima bila sudah dicatat, kalau belum memakai Qty PO.
+const DAY_MS = 86400000, MONTH_DAYS = 30.4375;
+function parseYMD(v){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||""));
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : null;
+}
+function toYMD(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+const monthsInclusive = (a,b)=> (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth()) + 1;
+const fmtNum = n => (Number(n)||0).toLocaleString("id-ID",{maximumFractionDigits:1});
+
+function analyzeItems(){
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const winStart = analysisPeriod > 0 ? new Date(now.getFullYear(), now.getMonth() - (analysisPeriod - 1), 1) : null;
+  const groups = new Map();
+  records.forEach(r=>{
+    if(r.status === "Batal") return;
+    const d = parseYMD(r.tglPengajuan);
+    const nama = String(r.namaBarang||"").trim();
+    if(!d || !nama) return;
+    const key = [r.divisi, nama.toLowerCase(), String(r.satuan||"").toLowerCase()].join("|");
+    let g = groups.get(key);
+    if(!g){ g = {key, divisi:r.divisi, nama, satuan:r.satuan||"", rows:[]}; groups.set(key, g); }
+    g.rows.push({d, qty:Number(r.qty)||0, recv: terimaInfo(r).kind==="belum" ? null : (Number(r.qtyDiterima)||0),
+                 harga:Number(r.estimasiHarga)||0, spec:r.spesifikasi||"", supplier:r.supplier||""});
+  });
+  const out = [];
+  groups.forEach(g=>{
+    g.rows.sort((a,b)=> a.d - b.d);
+    const first = g.rows[0].d, last = g.rows[g.rows.length-1];
+    const inWin = winStart ? g.rows.filter(x=>x.d >= winStart) : g.rows;
+    const span = Math.max(1, monthsInclusive(first, now));
+    const months = analysisPeriod > 0 ? Math.max(1, Math.min(analysisPeriod, span)) : span;
+    const total = inWin.reduce((t,x)=> t + x.qty, 0);
+    const avg = total / months;
+    const lastQty = last.recv != null ? last.recv : last.qty;
+    let runout = null, daysLeft = null, status = "data";
+    if(inWin.length >= 2 && avg > 0){          // minimal 2 pengajuan supaya rata-rata bermakna
+      runout = new Date(last.d.getTime() + (lastQty / avg) * MONTH_DAYS * DAY_MS);
+      daysLeft = Math.round((runout - today) / DAY_MS);
+      status = daysLeft < 0 ? "terlambat" : daysLeft <= remindLead ? "segera" : "aman";
+    }
+    out.push({key:g.key, divisi:g.divisi, nama:g.nama, satuan:g.satuan, count:inWin.length, total, avg, months,
+              last, lastQty, runout, daysLeft, status, spec:last.spec, harga:last.harga, supplier:last.supplier});
+  });
+  return out;
+}
+const reminderItems = ()=> analyzeItems().filter(i=>i.status==="terlambat" || i.status==="segera")
+                                         .sort((a,b)=> a.daysLeft - b.daysLeft);
+
+function rmBadge(it){
+  if(it.status === "terlambat") return `<span class="rm-badge terlambat">Terlambat ${-it.daysLeft} hari</span>`;
+  if(it.status === "segera")    return `<span class="rm-badge segera">${it.daysLeft === 0 ? "Habis hari ini" : it.daysLeft + " hari lagi"}</span>`;
+  if(it.status === "aman")      return `<span class="rm-badge aman">${it.daysLeft} hari lagi</span>`;
+  return `<span class="rm-badge data" title="Perlu minimal 2 pengajuan dalam periode analisa">Data kurang</span>`;
+}
+function ajukanPref(it){
+  return {divisi:it.divisi, namaBarang:it.nama, spesifikasi:it.spec, satuan:it.satuan || "Pcs",
+          estimasiHarga: it.harga || "", supplier:it.supplier, qty: Math.max(1, Math.ceil(it.avg)), keperluan:"Pengajuan ulang"};
+}
+function updateNavBadge(){
+  const b = document.getElementById("navBadge");
+  if(!b) return;
+  const n = reminderItems().length;
+  b.textContent = n > 99 ? "99+" : n;
+  b.hidden = n === 0;
+}
+function bindAjukan(){
+  document.querySelectorAll("[data-ajukan]").forEach(b=> b.onclick = ()=>{
+    const it = analyzeItems().find(x=>x.key === b.dataset.ajukan);
+    if(it) startNewForm(ajukanPref(it));
+  });
+  const go = document.getElementById("goAnalisa");
+  if(go) go.onclick = ()=> setView("analisa");
+}
+
+function renderRemindPanel(){
+  const list = reminderItems();
+  const periodTxt = analysisPeriod > 0 ? analysisPeriod + " bulan terakhir" : "seluruh data";
+  const rows = list.slice(0, 8).map(it=>{
+    const sat = escapeHtml(it.satuan);
+    return `<div class="remind-row">
+      <div class="rm-main">
+        <div class="rm-name">${escapeHtml(it.nama)} <span class="div-chip">${escapeHtml(it.divisi)}</span></div>
+        <div class="rm-sub">Rata-rata ${fmtNum(it.avg)} ${sat}/bulan · diajukan terakhir ${formatTgl(toYMD(it.last.d))} (${fmtNum(it.lastQty)} ${sat}) · perkiraan habis ${formatTgl(toYMD(it.runout))}</div>
+      </div>
+      ${rmBadge(it)}
+      <button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(it.key)}">Ajukan</button>
+    </div>`;
+  }).join("");
+  const body = list.length === 0
+    ? `<div class="empty-state">Belum ada item yang perlu diajukan ulang. Item baru dihitung setelah diajukan minimal 2 kali.</div>`
+    : rows;
+  return `
+    <div class="panel remind-panel">
+      <div class="remind-head">
+        <h2>Pengingat: Perlu Diajukan Ulang <span class="count-chip">${list.length}</span></h2>
+        <button type="button" class="link-btn" id="goAnalisa">Lihat analisa lengkap →</button>
+      </div>
+      <div class="rm-note">Berdasarkan rata-rata kebutuhan per bulan (${periodTxt}), diingatkan ${remindLead} hari sebelum perkiraan habis.</div>
+      ${body}
+      ${list.length > 8 ? `<div class="rm-more">+ ${list.length - 8} item lainnya di halaman Analisa</div>` : ""}
+    </div>`;
+}
+
+function renderAnalisa(){
+  const items = analyzeItems();
+  const q = analisaSearch.trim().toLowerCase();
+  const periodOpts = [[3,"3 bulan terakhir"],[6,"6 bulan terakhir"],[12,"12 bulan terakhir"],[0,"Semua data"]]
+    .map(([v,t])=>`<option value="${v}" ${analysisPeriod===v?"selected":""}>${t}</option>`).join("");
+  const leadOpts = [7,14,30].map(d=>`<option value="${d}" ${remindLead===d?"selected":""}>Ingatkan ${d} hari sebelum habis</option>`).join("");
+  const nRemind = items.filter(i=>i.status==="terlambat"||i.status==="segera").length;
+
+  const section = (div)=>{
+    const all = items.filter(i=>i.divisi === div);
+    const list = all.filter(i=> !q || i.nama.toLowerCase().includes(q)).sort((a,b)=> b.avg - a.avg);
+    const maxAvg = Math.max(0.0001, ...list.map(i=>i.avg));
+    const body = list.length === 0
+      ? `<div class="empty-state">${all.length ? "Tidak ada item yang cocok dengan pencarian." : "Belum ada data untuk divisi ini."}</div>`
+      : `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Jml Pengajuan</th><th>Total Diminta</th><th>Rata-rata / Bulan</th><th>Pengajuan Terakhir</th><th>Perkiraan Habis</th><th>Status</th><th></th></tr></thead><tbody>
+        ${list.map(i=>`<tr>
+          <td>${escapeHtml(i.nama)}</td>
+          <td>${escapeHtml(i.satuan)}</td>
+          <td>${i.count}×</td>
+          <td>${fmtNum(i.total)}</td>
+          <td><b>${fmtNum(i.avg)}</b><div class="avg-bar"><i style="width:${Math.round(i.avg/maxAvg*100)}%"></i></div></td>
+          <td>${formatTgl(toYMD(i.last.d))}<div class="sub-text">${fmtNum(i.lastQty)} ${escapeHtml(i.satuan)}</div></td>
+          <td>${i.runout ? formatTgl(toYMD(i.runout)) : '<span class="muted-dash">–</span>'}</td>
+          <td>${rmBadge(i)}</td>
+          <td>${(i.status==="terlambat"||i.status==="segera") ? `<button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button>` : ""}</td>
+        </tr>`).join("")}
+      </tbody></table>`;
+    return `<h2 class="sub-title">${escapeHtml(div)} <span class="count-chip">${all.length} item</span></h2><div class="table-wrap">${body}</div>`;
+  };
+
+  return `
+    <div class="page-header">
+      <div>
+        <h1>Analisa Kebutuhan</h1>
+        <p>Rata-rata kebutuhan tiap item per bulan, dipisah GA dan Purchasing. ${nRemind ? `<b class="rm-inline">${nRemind} item perlu diajukan ulang.</b>` : "Belum ada item yang perlu diajukan ulang."}</p>
+      </div>
+      <div class="header-actions">
+        ${themeToggleHTML()}
+        <button class="btn-outline" id="btnExportAnalisa">⬇ Export Excel</button>
+      </div>
+    </div>
+    <div class="analisa-controls">
+      <div class="search-box">🔍 <input id="analisaSearch" placeholder="Cari nama barang..." value="${escapeHtml(analisaSearch)}"></div>
+      <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
+      <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
+    </div>
+    <div class="rm-note">Rata-rata/bulan = total Qty PO ÷ jumlah bulan periode (pengadaan Batal tidak dihitung). Perkiraan habis = tanggal pengajuan terakhir + (jumlah terakhir ÷ rata-rata/bulan). Butuh minimal 2 pengajuan per item.</div>
+    ${DIVISI_LIST.map(section).join("")}
+  `;
+}
+
+function bindAnalisa(){
+  const per = document.getElementById("analisaPeriod"), lead = document.getElementById("analisaLead");
+  if(per) per.onchange = (e)=>{ analysisPeriod = Number(e.target.value); render(); };
+  if(lead) lead.onchange = (e)=>{ remindLead = Number(e.target.value); render(); };
+  const sb = document.getElementById("analisaSearch");
+  if(sb) sb.oninput = (e)=>{
+    analisaSearch = e.target.value;
+    const pos = e.target.selectionStart;
+    render();
+    const el = document.getElementById("analisaSearch");
+    if(el){ el.focus({preventScroll:true}); el.selectionStart = el.selectionEnd = pos; }
+  };
+  const ex = document.getElementById("btnExportAnalisa");
+  if(ex) ex.onclick = exportAnalisa;
+  bindAjukan();
+}
+
+function exportAnalisa(){
+  if(typeof XLSX === "undefined"){ alert("Library Excel belum siap, coba lagi sebentar."); return; }
+  const items = analyzeItems();
+  const wb = XLSX.utils.book_new();
+  let any = false;
+  DIVISI_LIST.forEach(div=>{
+    const rows = items.filter(i=>i.divisi === div).sort((a,b)=> b.avg - a.avg).map(i=>({
+      "Nama Barang": i.nama, "Satuan": i.satuan, "Jumlah Pengajuan": i.count, "Total Diminta": i.total,
+      "Rata-rata per Bulan": Math.round(i.avg*100)/100,
+      "Pengajuan Terakhir": formatTgl(toYMD(i.last.d)), "Qty Terakhir": i.lastQty,
+      "Perkiraan Habis": i.runout ? formatTgl(toYMD(i.runout)) : "",
+      "Status": i.status==="terlambat" ? "Terlambat "+(-i.daysLeft)+" hari" : i.status==="segera" ? i.daysLeft+" hari lagi (segera ajukan)" : i.status==="aman" ? "Aman ("+i.daysLeft+" hari lagi)" : "Data kurang"
+    }));
+    if(rows.length){
+      any = true;
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [{wch:28},{wch:10},{wch:16},{wch:14},{wch:18},{wch:18},{wch:14},{wch:18},{wch:28}];
+      XLSX.utils.book_append_sheet(wb, ws, div);
+    }
+  });
+  if(!any){ alert("Belum ada data untuk dianalisa."); return; }
+  XLSX.writeFile(wb, `analisa-kebutuhan-${todayISO()}.xlsx`);
 }
 
 // ---------- Menu Tambah Penerimaan ----------
