@@ -329,6 +329,13 @@
   .so-akhir-cell.neg{color:#D7263D;}
   .so-bulan{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);}
   .so-bulan input{padding:9px 10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:14px;}
+  .so-input.dirty{border-color:var(--accent);box-shadow:0 0 0 3px rgba(215,38,61,.18);}
+  .so-save{display:flex;align-items:center;gap:12px;}
+  .so-save[disabled]{opacity:.45;cursor:not-allowed;filter:none;transform:none;}
+  .hist-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .hist-table th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+  .hist-table td,.hist-table th{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;}
+  .hist-now{background:var(--row-hover);font-weight:600;}
 </style>
 </head>
 <body>
@@ -394,6 +401,17 @@
         <button type="button" class="btn-plain" id="editCancel">Batal</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="soHistoryModal" hidden>
+  <div class="modal modal-edit" role="dialog" aria-modal="true" aria-labelledby="soHistoryTitle">
+    <div class="edit-head">
+      <h2 id="soHistoryTitle">Riwayat Edit SO</h2>
+      <button type="button" id="soHistoryClose" aria-label="Tutup">×</button>
+    </div>
+    <div class="sub-text" id="soHistorySub"></div>
+    <div id="soHistoryBody"></div>
   </div>
 </div>
 
@@ -615,6 +633,7 @@ let soRecords = [];          // data Stok Opname per barang per bulan
 let analisaTab = "analisa";  // tab di halaman Analisa: "analisa" | "so"
 let soBulan = new Date().getFullYear()+"-"+String(new Date().getMonth()+1).padStart(2,"0");   // bulan SO yang sedang dilihat (YYYY-MM)
 let soSearch = "";
+let soDirty = new Set();     // idx baris SO yang diubah tapi belum disimpan (menunggu tombol Simpan)
 let view = "dashboard";
 let editingId = null;
 let form = null;
@@ -712,8 +731,17 @@ function normSo(s){
   o.stokAwal   = Number(o.stokAwal)||0;
   o.barangMasuk = Number(o.barangMasuk)||0;
   o.hasilSO    = Number(o.hasilSO)||0;
-  o.bulan = String(o.bulan||"").slice(0,7);   // YYYY-MM
+  const bm = /^(\d{4}-\d{2})/.exec(String(o.bulan||""));   // tahan banting: "2026-09", "2026-09-30T17:00:00.000Z", dll.
+  o.bulan = bm ? bm[1] : "";
+  // Riwayat edit: dari server berupa teks JSON, dari aplikasi berupa array
+  if(Array.isArray(o.history)) o.history = o.history;
+  else { try{ o.history = JSON.parse(o.history || "[]") || []; }catch(e){ o.history = []; } }
   return o;
+}
+function fmtDateTime(iso){
+  const d = new Date(iso);
+  if(iso && !isNaN(d.getTime())) return d.toLocaleString("id-ID",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  return iso || "-";
 }
 // Stok akhir SO = stok awal + barang masuk - hasil SO.
 // Angka ini menjadi STOK AWAL bulan selanjutnya (otomatis terisi saat tambah SO baru).
@@ -732,7 +760,8 @@ async function saveSoOnline(rec){
   pendingWrites++;
   showSyncStatus("Menyimpan SO...");
   try{
-    await apiRequest({action:"saveSO", record: clean});
+    // history dikirim sebagai teks JSON agar tersimpan di kolom History di sheet
+    await apiRequest({action:"saveSO", record: {...clean, history: JSON.stringify(clean.history || [])}});
     soUpsertLocal(clean);
     showSyncStatus("✓ SO Tersimpan • " + new Date().toLocaleTimeString("id-ID"));
   }finally{
@@ -1710,9 +1739,11 @@ function renderSoTab(){
   const q = soSearch.trim().toLowerCase();
   const all = buildSoItems(soBulan).sort((a,b)=> a.nama.localeCompare(b.nama, "id"));
   const items = all.filter(i=> !q || i.nama.toLowerCase().includes(q));
-  const cell = (it, field, hint)=>`<input type="number" min="0" step="any" class="so-input" data-so-idx="${it.idx}" data-so-field="${field}" value="${escapeHtml(it.vals[field])}" title="${hint}">`;
+  const cell = (it, field, hint)=>`<input type="number" min="0" step="any" class="so-input ${soDirty.has(it.idx)?"dirty":""}" data-so-idx="${it.idx}" data-so-field="${field}" value="${escapeHtml(it.vals[field])}" title="${hint}">`;
   const row = it=>{
     const akhir = (Number(it.vals.stokAwal)||0) + (Number(it.vals.barangMasuk)||0) - (Number(it.vals.hasilSO)||0);
+    const hist = (it.so && Array.isArray(it.so.history)) ? it.so.history : [];
+    const lastEdit = hist.length ? `<button type="button" class="link-btn" data-so-hist="${it.idx}">🕘 ${fmtDateTime(hist[hist.length-1].t)}${hist.length>1 ? " ("+hist.length+"×)" : ""}</button>` : '<span class="muted-dash">–</span>';
     return `<tr>
       <td>${escapeHtml(it.nama)}</td>
       <td>${escapeHtml(it.satuan)}</td>
@@ -1720,9 +1751,10 @@ function renderSoTab(){
       <td>${cell(it,"barangMasuk","Diterima (otomatis dari qty masuk Laporan Permintaan, bisa diubah)")}</td>
       <td>${cell(it,"hasilSO","Hasil stok opname / stok fisik")}</td>
       <td><span class="so-akhir-cell ${akhir < 0 ? "neg" : ""}" id="soAkhir-${it.idx}">${fmtNum(akhir)}</span> ${escapeHtml(it.satuan)}</td>
+      <td>${lastEdit}</td>
     </tr>`;
   };
-  const head = `<tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Diterima (Barang Masuk)</th><th>Hasil SO</th><th>Stok Akhir</th></tr>`;
+  const head = `<tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Diterima (Barang Masuk)</th><th>Hasil SO</th><th>Stok Akhir</th><th>Terakhir Diedit</th></tr>`;
   const section = (div)=>{
     const list = items.filter(i=> i.divisi === div);
     if(list.length === 0) return "";
@@ -1738,8 +1770,9 @@ function renderSoTab(){
     <div class="analisa-controls">
       <div class="search-box">🔍 <input id="soSearch" placeholder="Cari nama barang..." value="${escapeHtml(soSearch)}"></div>
       <label class="so-bulan">Bulan SO <input type="month" id="soBulan" value="${escapeHtml(soBulan)}"></label>
+      <button type="button" class="btn-accent so-save" id="soSave" ${soDirty.size ? "" : "disabled"}>💾 Simpan SO${soDirty.size ? " ("+soDirty.size+")" : ""}</button>
     </div>
-    <div class="rm-note">Semua barang tampil di sini (urut abjad, terpisah per divisi) — tinggal isi langsung di tabel. Rumus: <b>Stok Akhir = Stok Awal + Diterima − Hasil SO</b>. Stok awal otomatis dari stok akhir SO bulan sebelumnya, diterima otomatis dari qty masuk Laporan Permintaan pada bulan SO yang sama; keduanya tetap bisa diubah. Perubahan tersimpan otomatis saat kolom selesai diisi (blur). Stok akhir menjadi stok awal bulan berikutnya.</div>
+    <div class="rm-note">Semua barang tampil di sini (urut abjad, terpisah per divisi) — tinggal isi langsung di tabel lalu klik <b>💾 Simpan SO</b>. Rumus: <b>Stok Akhir = Stok Awal + Diterima − Hasil SO</b>. Stok awal otomatis dari stok akhir SO bulan sebelumnya, diterima otomatis dari qty masuk Laporan Permintaan pada bulan SO yang sama; keduanya tetap bisa diubah (kolom berubah merah = belum disimpan). Stok akhir menjadi stok awal bulan berikutnya. Klik waktu di kolom "Terakhir Diedit" untuk melihat riwayat editnya.</div>
     ${all.length === 0 ? `<div class="empty-state">Belum ada barang. Tambahkan dulu di menu Tambah Permintaan / Laporan Permintaan.</div>` : (DIVISI_LIST.map(section).join("") + extra)}
   `;
 }
@@ -1765,7 +1798,12 @@ function bindAnalisa(){
 
 function bindSoTab(){
   const bln = document.getElementById("soBulan");
-  if(bln) bln.onchange = (e)=>{ soBulan = e.target.value; render(); };
+  if(bln) bln.onchange = (e)=>{
+    if(soDirty.size && !confirm("Ada "+soDirty.size+" perubahan belum disimpan. Buang dan ganti bulan?")){ e.target.value = soBulan; return; }
+    soDirty.clear();
+    soBulan = e.target.value;
+    render();
+  };
   const items = new Map(buildSoItems(soBulan).map(i=>[i.idx, i]));
   const valOf = (idx, field)=>{
     const inp = document.querySelector(`.so-input[data-so-idx="${idx}"][data-so-field="${field}"]`);
@@ -1776,14 +1814,33 @@ function bindSoTab(){
     const cell = document.getElementById("soAkhir-" + idx);
     if(cell){ cell.textContent = fmtNum(a); cell.classList.toggle("neg", a < 0); }
   };
+  const updSaveBtn = ()=>{
+    const b = document.getElementById("soSave");
+    if(b){ b.disabled = soDirty.size === 0; b.textContent = "💾 Simpan SO" + (soDirty.size ? " ("+soDirty.size+")" : ""); }
+  };
   document.querySelectorAll(".so-input").forEach(inp=>{
     const idx = Number(inp.dataset.soIdx);
-    inp.addEventListener("input", ()=> updAkhir(idx));
-    inp.addEventListener("change", ()=>{          // tersimpan otomatis saat kolom selesai diisi (blur)
+    inp.addEventListener("input", ()=>{
+      updAkhir(idx);
+      soDirty.add(idx);
+      inp.classList.add("dirty");
+      updSaveBtn();
+    });
+  });
+
+  // Tombol Simpan: simpan semua baris yang diubah sekaligus + catat riwayat editnya
+  const saveBtn = document.getElementById("soSave");
+  if(saveBtn) saveBtn.onclick = async ()=>{
+    if(soDirty.size === 0) return;
+    saveBtn.disabled = true;
+    saveStart(false, "MENYIMPAN SO...");
+    const errs = [];
+    for(const idx of [...soDirty]){
       const it = items.get(idx);
-      if(!it) return;
+      if(!it) continue;
       const vals = {stokAwal: valOf(idx,"stokAwal"), barangMasuk: valOf(idx,"barangMasuk"), hasilSO: valOf(idx,"hasilSO")};
-      if(vals.stokAwal === "" && vals.barangMasuk === "" && vals.hasilSO === "") return;   // baris belum diisi: tidak perlu simpan
+      if(vals.stokAwal === "" && vals.barangMasuk === "" && vals.hasilSO === "") continue;   // baris belum diisi: lewati
+      const oldHist = (it.so && Array.isArray(it.so.history)) ? it.so.history : [];
       const rec = normSo({
         id: it.so ? it.so.id : idFor(),
         bulan: soBulan,
@@ -1793,14 +1850,45 @@ function bindSoTab(){
         stokAwal: vals.stokAwal === "" ? 0 : Number(vals.stokAwal),
         barangMasuk: vals.barangMasuk === "" ? 0 : Number(vals.barangMasuk),
         hasilSO: vals.hasilSO === "" ? 0 : Number(vals.hasilSO),
-        keterangan: it.so ? (it.so.keterangan || "") : ""
+        keterangan: it.so ? (it.so.keterangan || "") : "",
+        history: [...oldHist, {t: new Date().toISOString(), stokAwal: vals.stokAwal === "" ? 0 : Number(vals.stokAwal),
+                               barangMasuk: vals.barangMasuk === "" ? 0 : Number(vals.barangMasuk),
+                               hasilSO: vals.hasilSO === "" ? 0 : Number(vals.hasilSO)}]
       });
-      showSyncStatus("Menyimpan SO...");
-      saveSoOnline(rec)
-        .then(()=> showSyncStatus("✓ SO Tersimpan • " + new Date().toLocaleTimeString("id-ID")))
-        .catch(err=>{ alert("Gagal menyimpan SO: " + err.message); render(); });
-    });
+      try{ await saveSoOnline(rec); }
+      catch(err){ errs.push(it.nama + ": " + err.message); }
+    }
+    soDirty.clear();
+    if(errs.length){ saveFail(); alert("Sebagian gagal tersimpan:\n" + errs.join("\n")); }
+    else saveDone("SO TERSIMPAN");
+    render();
+  };
+
+  // Riwayat edit per item
+  document.querySelectorAll("[data-so-hist]").forEach(b=> b.onclick = ()=>{
+    const it = items.get(Number(b.dataset.soHist));
+    if(!it || !it.so) return;
+    const hist = Array.isArray(it.so.history) ? it.so.history : [];
+    document.getElementById("soHistorySub").textContent = it.nama + " — " + bulanLabel(soBulan) + " (" + it.satuan + ")";
+    const rowsHtml = hist.length === 0
+      ? `<div class="empty-state">Belum ada riwayat.</div>`
+      : `<table class="hist-table"><thead><tr><th>Waktu Edit</th><th>Stok Awal</th><th>Diterima</th><th>Hasil SO</th></tr></thead><tbody>
+          ${hist.map((h,i)=>`<tr class="${i===hist.length-1?"hist-now":""}">
+            <td>${fmtDateTime(h.t)}</td>
+            <td>${fmtNum(h.stokAwal)}</td>
+            <td>${fmtNum(h.barangMasuk)}</td>
+            <td>${fmtNum(h.hasilSO)}</td>
+          </tr>`).join("")}
+        </tbody></table>`;
+    document.getElementById("soHistoryBody").innerHTML = rowsHtml;
+    document.getElementById("soHistoryModal").hidden = false;
   });
+  const hClose = document.getElementById("soHistoryClose");
+  if(hClose) hClose.onclick = ()=>{ document.getElementById("soHistoryModal").hidden = true; };
+  const hModal = document.getElementById("soHistoryModal");
+  if(hModal) hModal.addEventListener("click", (e)=>{ if(e.target === hModal) hModal.hidden = true; });
+  document.addEventListener("keydown", (e)=>{ if(e.key === "Escape" && hModal && !hModal.hidden) hModal.hidden = true; });
+
   const sb = document.getElementById("soSearch");
   if(sb) sb.oninput = (e)=>{
     soSearch = e.target.value;
