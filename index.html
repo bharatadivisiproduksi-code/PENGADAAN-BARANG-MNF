@@ -768,6 +768,21 @@ async function deleteSoOnline(id){
     pendingWrites--;
   }
 }
+// Barang masuk dihitung OTOMATIS dari Laporan Permintaan:
+// jumlah qty diterima (kalau belum dicatat pakai qty PO) barang yang sama
+// dengan Tanggal Diterima jatuh pada bulan SO yang sama.
+function soBarangMasuk(nama, satuan, bulan){
+  const n = (nama||"").trim().toLowerCase();
+  const s = (satuan||"").toLowerCase();
+  const pref = String(bulan||"").slice(0,7);
+  if(!n || !pref) return 0;
+  return records.filter(r=>{
+    if(r.status === "Batal") return false;
+    if(String(r.namaBarang||"").trim().toLowerCase() !== n) return false;
+    if(String(r.satuan||"").toLowerCase() !== s) return false;
+    return String(r.tglDiterima||"").slice(0,7) === pref;
+  }).reduce((sum,r)=> sum + (terimaInfo(r).kind==="belum" ? (Number(r.qty)||0) : (Number(r.qtyDiterima)||0)), 0);
+}
 // SO bulan sebelumnya untuk barang+satuan yang sama -> dipakai untuk auto-stok awal.
 function soPrev(nama, satuan, bulan){
   const k = (nama||"").trim().toLowerCase() + "|" + (satuan||"").toLowerCase();
@@ -1713,9 +1728,10 @@ function renderSoTab(){
             <label class="field"><span>Bulan SO <span class="req">*</span></span><input type="month" name="bulan" value="${escapeHtml(f.bulan)}" required></label>
             <label class="field"><span>Nama Barang <span class="req">*</span></span><input name="namaBarang" list="soNameList" value="${escapeHtml(f.namaBarang)}" required><datalist id="soNameList">${nameList}</datalist></label>
             <label class="field"><span>Satuan</span><select name="satuan">${satuanOpts}</select></label>
-            <label class="field"><span>Stok Awal <span class="req">*</span></span><input type="number" min="0" name="stokAwal" value="${escapeHtml(f.stokAwal)}" required>
+            <label class="field"><span>Stok Awal (otomatis, bisa diedit)</span><input type="number" min="0" name="stokAwal" value="${escapeHtml(f.stokAwal)}" placeholder="Otomatis dari SO bulan lalu">
               <span class="terima-note"><button type="button" class="link-btn" id="soAmbilAwal">Ambil dari SO sebelumnya</button></span></label>
-            <label class="field"><span>Barang Masuk</span><input type="number" min="0" name="barangMasuk" value="${escapeHtml(f.barangMasuk)}" placeholder="0"></label>
+            <label class="field"><span>Barang Masuk (otomatis dari Laporan Permintaan)</span><input type="number" min="0" name="barangMasuk" value="${escapeHtml(f.barangMasuk)}" readonly>
+              <span class="sub-text">Jumlah qty diterima bulan ini dari Laporan Permintaan.</span></label>
             <label class="field"><span>Hasil SO / Stok Fisik <span class="req">*</span></span><input type="number" min="0" name="hasilSO" value="${escapeHtml(f.hasilSO)}" required></label>
             <label class="field"><span>Keterangan</span><input name="keterangan" value="${escapeHtml(f.keterangan)}"></label>
             <label class="field"><span>Stok Akhir → Stok Awal Bulan Berikutnya</span><input id="soAkhirDisplay" readonly>
@@ -1731,7 +1747,7 @@ function renderSoTab(){
     <div class="analisa-controls">
       <div class="search-box">🔍 <input id="soSearch" placeholder="Cari barang / bulan SO..." value="${escapeHtml(soSearch)}"></div>
     </div>
-    <div class="rm-note">Rumus: <b>Stok Akhir = Stok Awal + Barang Masuk − Hasil SO</b>. Stok akhir otomatis menjadi stok awal bulan selanjutnya (klik "Ambil dari SO sebelumnya" atau biarkan stok awal kosong saat tambah SO baru).</div>
+    <div class="rm-note">Rumus: <b>Stok Akhir = Stok Awal + Barang Masuk − Hasil SO</b>. Stok awal otomatis dari stok akhir SO bulan sebelumnya (boleh dikosongkan / diedit), barang masuk otomatis dihitung dari penerimaan di Laporan Permintaan pada bulan SO yang sama. Stok akhir menjadi stok awal bulan berikutnya.</div>
     <div class="table-wrap">${rowsHtml}</div>
   `;
 }
@@ -1771,15 +1787,22 @@ function bindSoTab(){
   el("satuan").addEventListener("change", updAkhir);
   updAkhir();
 
-  // Stok awal otomatis: ambil stok akhir SO bulan sebelumnya (jika stok awal masih kosong)
+  // Stok awal otomatis: ambil stok akhir SO bulan sebelumnya (boleh diedit manual)
   const autoFill = ()=>{
-    if(el("stokAwal").value !== "") return;
     const prev = soPrev(el("namaBarang").value, el("satuan").value, el("bulan").value);
-    if(prev){ el("stokAwal").value = soStokAkhir(prev); updAkhir(); }
+    if(prev && el("stokAwal").value === "") el("stokAwal").value = soStokAkhir(prev);
+    updAkhir();
   };
-  el("bulan").addEventListener("change", autoFill);
-  el("namaBarang").addEventListener("change", autoFill);
-  el("satuan").addEventListener("change", autoFill);
+  // Barang masuk otomatis dari Laporan Permintaan (qty diterima bulan SO yang sama)
+  const autoMasuk = ()=>{
+    el("barangMasuk").value = soBarangMasuk(el("namaBarang").value, el("satuan").value, el("bulan").value);
+    updAkhir();
+  };
+  el("bulan").addEventListener("change", ()=>{ autoFill(); autoMasuk(); });
+  el("namaBarang").addEventListener("change", ()=>{ autoFill(); autoMasuk(); });
+  el("satuan").addEventListener("change", ()=>{ autoFill(); autoMasuk(); });
+  el("namaBarang").addEventListener("input", autoMasuk);
+  autoMasuk();
   const ambil = document.getElementById("soAmbilAwal");
   if(ambil) ambil.onclick = ()=>{
     const prev = soPrev(el("namaBarang").value, el("satuan").value, el("bulan").value);
@@ -1791,14 +1814,20 @@ function bindSoTab(){
 
   f.onsubmit = (e)=>{
     e.preventDefault();
-    if(!el("namaBarang").value.trim() || !el("bulan").value || el("hasilSO").value === "" || el("stokAwal").value === "") return;
+    if(!el("namaBarang").value.trim() || !el("bulan").value || el("hasilSO").value === "") return;
+    // Stok awal boleh kosong: kalau kosong, otomatis pakai stok akhir SO bulan sebelumnya (kalau tidak ada = 0).
+    let stokAwal = el("stokAwal").value;
+    if(stokAwal === ""){
+      const prev = soPrev(el("namaBarang").value, el("satuan").value, el("bulan").value);
+      stokAwal = prev ? soStokAkhir(prev) : 0;
+    }
     const rec = normSo({
       id: soEditingId || idFor(),
       bulan: el("bulan").value,
       namaBarang: el("namaBarang").value.trim(),
       satuan: el("satuan").value,
-      stokAwal: Number(el("stokAwal").value)||0,
-      barangMasuk: el("barangMasuk").value === "" ? 0 : (Number(el("barangMasuk").value)||0),
+      stokAwal: Number(stokAwal)||0,
+      barangMasuk: soBarangMasuk(el("namaBarang").value, el("satuan").value, el("bulan").value),
       hasilSO: Number(el("hasilSO").value)||0,
       keterangan: el("keterangan").value
     });
