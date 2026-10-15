@@ -2062,19 +2062,17 @@ function renderTerima(){
 
 // ---------- Tab Pengeluaran: catat pengeluaran harian tiap item ----------
 function renderPengeluaran(){
-  const divOpts = DIVISI_LIST.map(d=>`<option ${keluarForm.divisi===d?"selected":""}>${d}</option>`).join("");
   const satOpts = SATUAN_LIST.map(s=>`<option ${keluarForm.satuan===s?"selected":""}>${s}</option>`).join("");
   // Daftar barang yang sudah dikenal (dari pengajuan + SO) untuk saran nama
   const known = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])];
-  const dataList = known.filter(i=>i.divisi === keluarForm.divisi).map(i=>`<option value="${escapeHtml(i.nama)}"></option>`).join("");
+  const dataList = known.map(i=>`<option value="${escapeHtml(i.nama)}"></option>`).join("");
 
   const recent = outRows.slice().sort((a,b)=> String(b.tanggal).localeCompare(String(a.tanggal)) || String(b.id).localeCompare(String(a.id))).slice(0, 30);
   const recentHtml = recent.length === 0
     ? `<div class="empty-state">Belum ada pengeluaran yang dicatat. Pengeluaran harian dipakai untuk cek balance di Stock Opname.</div>`
-    : `<table><thead><tr><th>Tanggal</th><th>Divisi</th><th>Barang</th><th>Qty Keluar</th><th>Keterangan</th><th></th></tr></thead><tbody>
+    : `<table><thead><tr><th>Tanggal</th><th>Barang</th><th>Qty Keluar</th><th>Keterangan</th><th></th></tr></thead><tbody>
         ${recent.map(o=>`<tr>
           <td>${formatTgl(o.tanggal)}</td>
-          <td>${escapeHtml(o.divisi)}</td>
           <td>${escapeHtml(o.namaBarang)}</td>
           <td>${fmtNum(o.qty)} ${escapeHtml(o.satuan)}</td>
           <td>${escapeHtml(o.keterangan)}</td>
@@ -2087,7 +2085,6 @@ function renderPengeluaran(){
         <h3>Pengeluaran Harian (per item)</h3>
         <div class="field-grid">
           <label class="field"><span>Tanggal <span class="req">*</span></span><input type="date" name="kTanggal" value="${escapeHtml(keluarForm.tanggal)}" required></label>
-          <label class="field"><span>Divisi <span class="req">*</span></span><select name="kDivisi">${divOpts}</select></label>
           <label class="field"><span>Nama Barang <span class="req">*</span></span>
             <input name="kNama" list="keluarList" placeholder="Ketik atau pilih nama barang" value="${escapeHtml(keluarForm.nama)}" required>
             <datalist id="keluarList">${dataList}</datalist></label>
@@ -2108,34 +2105,39 @@ function renderPengeluaran(){
 }
 
 // isian form pengeluaran (agar tidak hilang saat render ulang)
-let keluarForm = { tanggal: todayISO(), divisi: "GA", nama: "", satuan: "Pcs", qty: "", ket: "" };
+let keluarForm = { tanggal: todayISO(), nama: "", satuan: "Pcs", qty: "", ket: "" };
+let keluarDivisiNama = "";   // divisi otomatis dari nama barang yang dipilih
 
 function bindPengeluaran(){
   const f = document.getElementById("keluarForm");
   if(!f) return;
   const el = n => f.elements[n];
-  // isi satuan otomatis bila nama barang cocok dengan item yang sudah dikenal
+  // isi satuan & divisi otomatis bila nama barang cocok dengan item yang sudah dikenal
   el("kNama").addEventListener("change", ()=>{
     const v = el("kNama").value.trim().toLowerCase();
     if(!v) return;
-    const m = analyzeItems().find(i=> i.divisi === el("kDivisi").value && i.nama.toLowerCase() === v);
-    if(m && m.satuan) el("kSatuan").value = m.satuan;
+    const m = analyzeItems().find(i=> i.nama.toLowerCase() === v) || soRows.filter(o=> o.namaBarang.toLowerCase() === v).slice().sort((a,b)=> b.bulan.localeCompare(a.bulan))[0];
+    if(m){ if(m.satuan) el("kSatuan").value = m.satuan; keluarDivisiNama = m.divisi || ""; }
   });
-  el("kDivisi").onchange = ()=>{ keluarForm.divisi = el("kDivisi").value; render(); };
   f.onsubmit = (e)=>{
     e.preventDefault();
     const nama = el("kNama").value.trim(), qty = el("kQty").value;
     if(!nama || qty === ""){ alert("Nama barang dan Qty Keluar harus diisi."); return; }
-    outRows.push({id:idFor(), tanggal: el("kTanggal").value || todayISO(), divisi: el("kDivisi").value,
+    if(!keluarDivisiNama){
+      const m = analyzeItems().find(i=> i.nama.toLowerCase() === nama.toLowerCase()) || soRows.filter(o=> o.namaBarang.toLowerCase() === nama.toLowerCase())[0];
+      keluarDivisiNama = m ? (m.divisi || "") : "";
+    }
+    outRows.push({id:idFor(), tanggal: el("kTanggal").value || todayISO(), divisi: keluarDivisiNama,
                   namaBarang: nama, satuan: el("kSatuan").value, qty: Math.max(0, Number(qty)||0),
                   keterangan: el("kKet").value.trim()});
     persistOut();
-    keluarForm = { tanggal: todayISO(), divisi: keluarForm.divisi, nama: "", satuan: "Pcs", qty: "", ket: "" };
+    keluarForm = { tanggal: todayISO(), nama: "", satuan: "Pcs", qty: "", ket: "" };
+    keluarDivisiNama = "";
     saveStart(false); saveDone("TERSIMPAN ✓");
     render();
   };
   const rs = document.getElementById("kReset");
-  if(rs) rs.onclick = ()=>{ keluarForm = { tanggal: todayISO(), divisi: keluarForm.divisi, nama: "", satuan: "Pcs", qty: "", ket: "" }; render(); };
+  if(rs) rs.onclick = ()=>{ keluarForm = { tanggal: todayISO(), nama: "", satuan: "Pcs", qty: "", ket: "" }; keluarDivisiNama = ""; render(); };
   document.querySelectorAll("[data-out-del]").forEach(b=> b.onclick = ()=>{
     const i = outRows.findIndex(o=>o.id === b.dataset.outDel);
     if(i >= 0){ outRows.splice(i,1); persistOut(); render(); }
