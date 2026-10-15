@@ -2149,7 +2149,8 @@ function bindPengeluaran(){
   try{
   const acInput = el("kNama"), acBox = document.getElementById("kNamaAc");
   const allItems = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])]
-    .map(i=>({nama:i.nama, satuan:i.satuan, divisi:i.divisi}))
+    .map(([,v])=>({nama:v.nama, satuan:v.satuan, divisi:v.divisi}))
+    .filter(i=> i.nama)
     .sort((a,b)=> a.nama.localeCompare(b.nama, "id"));
   const applyItem = (it)=>{
     acInput.value = it.nama;
