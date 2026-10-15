@@ -1320,9 +1320,9 @@ function bindTerimaHint(formEl){
 
 // ---------- Analisa kebutuhan, stock opname (SO) & pengingat ----------
 // Sumber kebutuhan per bulan (dipilih otomatis):
-//  1) SO       : rata-rata "Hasil SO" (pemakaian) per bulan yang tercatat di tab SO dalam periode analisa
+//  1) SO       : rata-rata Pemakaian (Stok Awal + Barang Masuk - Hasil SO) per bulan yang tercatat di tab SO dalam periode analisa
 //  2) PENGAJUAN: total Qty PO / jumlah bulan periode (min. 2 pengajuan)
-// Stok sekarang (estimasi) = Stok Akhir SO terakhir + penerimaan sesudahnya - perkiraan pemakaian.
+// Stok sekarang (estimasi) = Hasil SO (stok fisik) terakhir + penerimaan sesudahnya - perkiraan pemakaian.
 const DAY_MS = 86400000, MONTH_DAYS = 30.4375;
 function parseYMD(v){
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||""));
@@ -1351,8 +1351,9 @@ function normSo(o){
           stokAwal:Number(o.stokAwal)||0, barangMasuk:Number(o.barangMasuk)||0, hasilSO:Number(o.hasilSO)||0,
           keterangan:o.keterangan||"", history:parseHist(o.history), updatedAt:o.updatedAt||""};
 }
-// Stok Akhir = Stok Awal + Barang Masuk - Hasil SO (Stok Akhir bulan ini = Stok Awal bulan berikutnya)
-const soAkhir = r => (Number(r.stokAwal)||0) + (Number(r.barangMasuk)||0) - (Number(r.hasilSO)||0);
+// Hasil SO = stok FISIK hasil hitung. Pemakaian bulan itu = Stok Awal + Barang Masuk - Hasil SO,
+// dan Hasil SO menjadi Stok Awal bulan berikutnya.
+const soPakai = r => (Number(r.stokAwal)||0) + (Number(r.barangMasuk)||0) - (Number(r.hasilSO)||0);
 const SO_KEY = "pengadaan_so_v1";
 function persistSo(){ try{ localStorage.setItem(SO_KEY, JSON.stringify(soRows)); }catch(e){} }
 function loadSoLocal(){
@@ -1388,7 +1389,7 @@ function analyzeItems(){
   });
   soRows.forEach(o=>{
     if(!/^\d{4}-\d{2}$/.test(o.bulan) || !String(o.namaBarang||"").trim()) return;
-    getG(o.divisi, o.namaBarang, o.satuan).so.push({m:o.bulan, id:o.id, awal:o.stokAwal, masuk:o.barangMasuk, hasil:o.hasilSO, akhir:soAkhir(o), ket:o.keterangan});
+    getG(o.divisi, o.namaBarang, o.satuan).so.push({m:o.bulan, id:o.id, awal:o.stokAwal, masuk:o.barangMasuk, fisik:o.hasilSO, pakai:soPakai(o), ket:o.keterangan});
   });
 
   const out = [];
@@ -1408,20 +1409,20 @@ function analyzeItems(){
     }
     const last = g.rows.length ? g.rows[g.rows.length-1] : null;
     const lastQty = last ? (last.recv != null ? last.recv : last.qty) : 0;
-    // --- kebutuhan dari SO: rata-rata Hasil SO per bulan yang tercatat dalam periode ---
+    // --- kebutuhan dari SO: rata-rata Pemakaian (Stok Awal + Barang Masuk - Hasil SO) per bulan yang tercatat dalam periode ---
     const soWin = winMonth ? g.so.filter(x=>x.m >= winMonth) : g.so;
-    const anomaly = g.so.some(x=>x.akhir < 0);
-    const soMonthly = soWin.length ? soWin.reduce((t,x)=> t + x.hasil, 0) / soWin.length : null;
+    const anomaly = g.so.some(x=>x.pakai < 0);
+    const soMonthly = soWin.length ? soWin.reduce((t,x)=> t + Math.max(0, x.pakai), 0) / soWin.length : null;
     let need = null, source = null;
     if(soMonthly != null){ need = soMonthly; source = "so"; }
     else if(count >= 2 && reqAvg > 0){ need = reqAvg; source = "pengajuan"; }
-    // --- stok sekarang (estimasi): Stok Akhir SO terakhir + penerimaan sesudahnya - perkiraan pemakaian ---
+    // --- stok sekarang (estimasi): Hasil SO (stok fisik) terakhir + penerimaan sesudahnya - perkiraan pemakaian ---
     const lastSO = g.so.length ? g.so[g.so.length-1] : null;
     let stock = null, asOf = null;
     if(lastSO){
       asOf = new Date(Math.min(monthEnd(lastSO.m).getTime(), today.getTime()));
       const daysSince = Math.max(0, dayDiff(asOf, today));
-      stock = Math.max(0, lastSO.akhir + recvIn(recvList, asOf, today) - (need ? need / MONTH_DAYS * daysSince : 0));
+      stock = Math.max(0, lastSO.fisik + recvIn(recvList, asOf, today) - (need ? need / MONTH_DAYS * daysSince : 0));
     }
     const onOrder = g.rows.filter(x=> x.recv == null && (x.status==="Pengajuan" || x.status==="Disetujui")
                                        && (today - x.d)/DAY_MS <= 60 && (!asOf || x.d >= asOf)).reduce((t,x)=> t + x.qty, 0);
@@ -1560,7 +1561,7 @@ function renderAnalisa(){
       ? `<div class="empty-state">${all.length ? "Tidak ada item yang cocok dengan pencarian." : "Belum ada data untuk divisi ini."}</div>`
       : `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Jml Pengajuan</th><th>Total Diminta</th><th>Kebutuhan / Bulan</th><th>Stok Sekarang</th><th>Pengajuan Terakhir</th><th>Perkiraan Habis</th><th>Status</th><th></th></tr></thead><tbody>
         ${list.map(i=>`<tr>
-          <td>${escapeHtml(i.nama)}${i.anomaly ? ' <span class="rm-badge segera" title="Ada SO yang Stok Akhirnya minus: Hasil SO lebih besar dari Stok Awal + Barang Masuk. Cek angkanya.">cek SO</span>' : ""}</td>
+          <td>${escapeHtml(i.nama)}${i.anomaly ? ' <span class="rm-badge segera" title="Ada SO yang Pemakaiannya minus: Hasil SO (fisik) lebih besar dari Stok Awal + Barang Masuk. Cek barang masuk yang belum tercatat, atau hitungannya.">cek SO</span>' : ""}</td>
           <td>${escapeHtml(i.satuan)}</td>
           <td>${i.count}×</td>
           <td>${fmtNum(i.total)}</td>
@@ -1591,7 +1592,7 @@ function renderAnalisa(){
       <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
       <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
     </div>
-    <div class="rm-note"><b>Sumber kebutuhan:</b> <span class="src-tag so">SO</span> = rata-rata <b>Hasil SO</b> (pemakaian) per bulan yang tercatat dalam periode, dipakai bila item sudah punya data Stock Opname. <span class="src-tag rq">pengajuan</span> = total Qty PO ÷ jumlah bulan periode (min. 2 pengajuan; pengadaan Batal tidak dihitung). <b>Stok sekarang</b> = Stok Akhir SO terakhir + penerimaan sesudahnya − perkiraan pemakaian.</div>
+    <div class="rm-note"><b>Sumber kebutuhan:</b> <span class="src-tag so">SO</span> = rata-rata <b>Pemakaian</b> per bulan (Stok Awal + Barang Masuk − Hasil SO) yang tercatat di Stock Opname dalam periode, dipakai bila item sudah punya data SO. <span class="src-tag rq">pengajuan</span> = total Qty PO ÷ jumlah bulan periode (min. 2 pengajuan; pengadaan Batal tidak dihitung). <b>Stok sekarang</b> = Hasil SO (stok fisik) terakhir + penerimaan sesudahnya − perkiraan pemakaian.</div>
     ${DIVISI_LIST.map(section).join("")}
   `;
 }
@@ -1640,8 +1641,8 @@ function exportAnalisa(){
 }
 
 // ---------- Menu Stock Opname (tab SO: 1 baris = 1 barang x 1 bulan) ----------
-// Stok Akhir = Stok Awal + Barang Masuk - Hasil SO. Stok Awal otomatis = Stok Akhir bulan sebelumnya;
-// Barang Masuk otomatis dari penerimaan bulan itu (bisa diubah). Hasil SO = pemakaian yang Anda input.
+// Hasil SO = stok fisik hasil hitung. Pemakaian = Stok Awal + Barang Masuk - Hasil SO.
+// Stok Awal otomatis = Hasil SO bulan sebelumnya; Barang Masuk otomatis dari penerimaan bulan itu (bisa diubah).
 let soDivisi = "GA", soBulan = "", soDraft = {}, soNewRows = [];
 
 function soDefaults(item, bulan){
@@ -1650,9 +1651,9 @@ function soDefaults(item, bulan){
   const autoMasuk = recvInMonth(item.recvList, bulan);
   return {
     saved, prev, autoMasuk,
-    awal:  saved ? String(saved.awal)  : (prev ? String(prev.akhir) : ""),
+    awal:  saved ? String(saved.awal)  : (prev ? String(prev.fisik) : ""),
     masuk: saved ? String(saved.masuk) : String(autoMasuk || 0),
-    hasil: saved ? String(saved.hasil) : "",
+    hasil: saved ? String(saved.fisik) : "",
     ket:   saved ? (saved.ket || "") : ""
   };
 }
@@ -1660,12 +1661,12 @@ function soEff(item, bulan){
   const d = soDefaults(item, bulan), dr = soDraft[item.key] || {};
   return {...d, awal: dr.awal ?? d.awal, masuk: dr.masuk ?? d.masuk, hasil: dr.hasil ?? d.hasil, ket: dr.ket ?? d.ket};
 }
-function soAkhirText(e){
+function soPakaiText(e){
   if(e.hasil === "" || e.awal === "") return '<span class="muted-dash">–</span>';
-  const a = (Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0);
-  return a < 0
-    ? `<span class="rm-badge terlambat" title="Hasil SO lebih besar dari Stok Awal + Barang Masuk. Cek angkanya.">${fmtNum(a)} · cek</span>`
-    : `<b>${fmtNum(a)}</b>`;
+  const p = (Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0);
+  return p < 0
+    ? `<span class="rm-badge terlambat" title="Hasil SO (fisik) lebih besar dari Stok Awal + Barang Masuk. Ada barang masuk yang belum tercatat, atau hitungan salah.">${fmtNum(p)} · cek</span>`
+    : `<b>${fmtNum(p)}</b>`;
 }
 
 function renderOpname(){
@@ -1678,9 +1679,9 @@ function renderOpname(){
   const rows = items.map(i=>{
     const e = soEff(i, bulan), k = escapeHtml(i.key);
     const awalNote = e.prev
-      ? (e.saved && e.saved.awal !== e.prev.akhir
-          ? `<div class="sub-text so-warn">stok akhir bulan lalu: ${fmtNum(e.prev.akhir)}</div>`
-          : `<div class="sub-text">dari stok akhir ${fmtBulan(e.prev.m)}</div>`)
+      ? (e.saved && e.saved.awal !== e.prev.fisik
+          ? `<div class="sub-text so-warn">Hasil SO ${fmtBulan(e.prev.m)}: ${fmtNum(e.prev.fisik)}</div>`
+          : `<div class="sub-text">dari Hasil SO ${fmtBulan(e.prev.m)}</div>`)
       : '<div class="sub-text">isi stok awal (pertama kali)</div>';
     const masukNote = e.autoMasuk ? `<div class="sub-text">penerimaan bulan ini: ${fmtNum(e.autoMasuk)}</div>` : "";
     return `<tr>
@@ -1688,13 +1689,13 @@ function renderOpname(){
       <td>${escapeHtml(i.satuan)}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="awal" value="${escapeHtml(e.awal)}">${awalNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="masuk" value="${escapeHtml(e.masuk)}">${masukNote}</td>
-      <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="pemakaian"></td>
-      <td class="so-akhir" data-akhir="${k}">${soAkhirText(e)}</td>
+      <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
+      <td class="so-akhir" data-akhir="${k}">${soPakaiText(e)}</td>
       <td><input type="text" class="so-ket" data-so="${k}" data-f="ket" value="${escapeHtml(e.ket)}" placeholder="opsional"></td>
     </tr>`;
   }).join("");
   const itemsTable = items.length
-    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Pemakaian)</th><th>Stok Akhir</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pemakaian</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div>`;
 
   const newRows = soNewRows.map((r,i)=>`<div class="so-new-row">
@@ -1711,18 +1712,18 @@ function renderOpname(){
   const histRows = hist.map(o=>`<tr>
       <td>${fmtBulan(o.bulan)}</td><td>${escapeHtml(o.namaBarang)}</td><td>${escapeHtml(o.satuan)}</td>
       <td>${fmtNum(o.stokAwal)}</td><td>${fmtNum(o.barangMasuk)}</td><td>${fmtNum(o.hasilSO)}</td>
-      <td>${soAkhir(o) < 0 ? `<span class="rm-badge terlambat">${fmtNum(soAkhir(o))} · cek</span>` : `<b>${fmtNum(soAkhir(o))}</b>`}</td>
+      <td>${soPakai(o) < 0 ? `<span class="rm-badge terlambat">${fmtNum(soPakai(o))} · cek</span>` : `<b>${fmtNum(soPakai(o))}</b>`}</td>
       <td><button class="so-del" data-so-hist="${escapeHtml(o.id)}" title="Riwayat perubahan">🕘 ${o.history.length}</button>
           <button class="so-del" data-so-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`).join("");
   const histTable = hist.length
-    ? `<table><thead><tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO</th><th>Stok Akhir</th><th></th></tr></thead><tbody>${histRows}</tbody></table>`
+    ? `<table><thead><tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th></th></tr></thead><tbody>${histRows}</tbody></table>`
     : `<div class="empty-state">Belum ada data Stock Opname untuk ${escapeHtml(soDivisi)}.</div>`;
 
   return `
     <div class="page-header">
       <div>
         <h1>Stock Opname</h1>
-        <p>Catat pemakaian (Hasil SO) tiap barang per bulan. Stok Akhir = Stok Awal + Barang Masuk − Hasil SO, dan menjadi Stok Awal bulan berikutnya.</p>
+        <p>Catat hasil hitung fisik (Hasil SO) tiap barang per bulan. Pemakaian = Stok Awal + Barang Masuk − Hasil SO, dan Hasil SO menjadi Stok Awal bulan berikutnya.</p>
       </div>
       <div class="header-actions">${themeToggleHTML()}</div>
     </div>
@@ -1739,7 +1740,7 @@ function renderOpname(){
     </div>
     <div class="form-actions" style="margin-top:18px;">
       <button type="button" class="btn-accent" id="soSave">Simpan SO</button>
-      <span class="so-hint">Hanya baris yang Hasil SO-nya diisi yang disimpan. Isi 0 bila tidak ada pemakaian.</span>
+      <span class="so-hint">Hanya baris yang Hasil SO-nya diisi yang disimpan. Isi 0 bila stok fisiknya habis.</span>
     </div>
     <h2 class="sub-title">Riwayat SO — ${escapeHtml(soDivisi)}</h2>
     <div class="table-wrap">${histTable}</div>
@@ -1764,7 +1765,7 @@ function bindOpname(){
     const k = inp.dataset.so;
     (soDraft[k] = soDraft[k] || {})[inp.dataset.f] = inp.value;
     const it = byKey.get(k), cell = document.querySelector(`[data-akhir="${CSS.escape(k)}"]`);
-    if(it && cell) cell.innerHTML = soAkhirText(soEff(it, bulan));
+    if(it && cell) cell.innerHTML = soPakaiText(soEff(it, bulan));
   });
   document.getElementById("soAddNew").onclick = ()=>{ soNewRows.push({nama:"", satuan:"Pcs", awal:"", masuk:"0", hasil:""}); render(); };
   document.querySelectorAll("[data-sn]").forEach(el=> el.oninput = el.onchange = ()=>{ soNewRows[Number(el.dataset.sn)][el.dataset.f] = el.value; });
@@ -1778,7 +1779,7 @@ function bindOpname(){
       const e = soEff(i, bulan);
       if(e.hasil === "") return;                                   // tidak diisi = tidak disimpan
       const sv = e.saved;
-      if(sv && Number(e.awal) === sv.awal && Number(e.masuk) === sv.masuk && Number(e.hasil) === sv.hasil && (e.ket||"") === (sv.ket||"")) return;   // tidak berubah
+      if(sv && Number(e.awal) === sv.awal && Number(e.masuk) === sv.masuk && Number(e.hasil) === sv.fisik && (e.ket||"") === (sv.ket||"")) return;   // tidak berubah
       if(e.awal === ""){ missing.push(i.nama); return; }
       recs.push(buildSoRecord(i.divisi, i.nama, i.satuan, bulan, e, sv ? sv.id : null));
     });
@@ -1860,7 +1861,7 @@ function openSoHistory(id){
     <td>${escapeHtml(new Date(h.w).toLocaleString("id-ID"))}</td><td>${fmtNum(h.a)}</td><td>${fmtNum(h.m)}</td><td>${fmtNum(h.h)}</td>
     <td><b>${fmtNum((Number(h.a)||0)+(Number(h.m)||0)-(Number(h.h)||0))}</b></td><td>${escapeHtml(h.k||"")}</td></tr>`).join("");
   document.getElementById("soHistBody").innerHTML = o.history.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO</th><th>Stok Akhir</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : '<div class="empty-state">Belum ada riwayat perubahan.</div>';
   lockScroll();
   document.getElementById("soHistModal").hidden = false;
