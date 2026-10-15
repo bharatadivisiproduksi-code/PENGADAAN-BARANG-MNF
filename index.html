@@ -1401,9 +1401,14 @@ function loadOut(){
 // Total pengeluaran 1 item pada 1 bulan (YYYY-MM); nama dibandingkan tanpa peduli besar-kecil huruf
 function keluarBulan(divisi, nama, bulan){
   const n = String(nama||"").trim().toLowerCase();
-  return outRows.reduce((t,o)=>
-    o.divisi === divisi && String(o.namaBarang).trim().toLowerCase() === n && String(o.tanggal).slice(0,7) === bulan
-    ? t + (Number(o.qty)||0) : t, 0);
+  const d = String(divisi||"").trim().toLowerCase();
+  return outRows.reduce((t,o)=>{
+    const od = String(o.divisi||"").trim().toLowerCase();
+    // divisi dicocokkan tanpa peduli besar-kecil huruf; kalau salah satu kosong tetap dicocokkan (berdasarkan nama)
+    const cocokDivisi = od === d || od === "" || d === "";
+    return cocokDivisi && String(o.namaBarang).trim().toLowerCase() === n && String(o.tanggal).slice(0,7) === bulan
+      ? t + (Number(o.qty)||0) : t;
+  }, 0);
 }
 
 const SO_KEY = "pengadaan_so_v1";
@@ -1771,15 +1776,16 @@ function renderOpname(){
           : `<div class="sub-text">dari Hasil SO ${fmtBulan(e.prev.m)}</div>`)
       : '<div class="sub-text">isi stok awal (pertama kali)</div>';
     const masukNote = e.autoMasuk ? `<div class="sub-text">penerimaan bulan ini: ${fmtNum(e.autoMasuk)}</div>` : "";
-    const keluarNote = b && b.keluar ? `<div class="sub-text">dari tab Pengeluaran</div>` : "";
+    const kel = keluarBulan(i.divisi, i.nama, bulan);
+    const keluarNote = kel ? `<div class="sub-text">dari tab Pengeluaran</div>` : "";
     return `<tr>
       <td>${escapeHtml(i.nama)}${e.saved ? ' <span class="rm-badge aman">tersimpan</span>' : ""}</td>
       <td>${escapeHtml(i.satuan)}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="awal" value="${escapeHtml(e.awal)}">${awalNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="masuk" value="${escapeHtml(e.masuk)}">${masukNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
-      <td data-keluar="${k}">${b && b.keluar ? fmtNum(b.keluar) : '<span class="muted-dash">–</span>'}${keluarNote}</td>
-      <td data-sisa="${k}">${b ? `<b>${fmtNum(b.sisa)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>'}</td>
+      <td data-keluar="${k}">${kel ? fmtNum(kel) : '<span class="muted-dash">–</span>'}${keluarNote}</td>
+      <td data-sisa="${k}">${e.awal !== "" ? `<b>${fmtNum((Number(e.awal)||0) - kel)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>'}</td>
       <td class="so-akhir" data-akhir="${k}">${soPakaiText(e)}</td>
       <td data-balance="${k}">${soBalanceText(b, k, e.alasan)}</td>
       <td><input type="text" class="so-ket" data-so="${k}" data-f="ket" value="${escapeHtml(e.ket)}" placeholder="opsional"></td>
@@ -1869,10 +1875,11 @@ function bindOpname(){
     const cell = document.querySelector(`[data-akhir="${CSS.escape(k)}"]`);
     if(cell) cell.innerHTML = soPakaiText(e);
     const b = soBalance(e, it.divisi, it.nama, bulan);
+    const kel = keluarBulan(it.divisi, it.nama, bulan);
     const cKel = document.querySelector(`[data-keluar="${CSS.escape(k)}"]`);
-    if(cKel) cKel.innerHTML = (b && b.keluar ? fmtNum(b.keluar) : '<span class="muted-dash">–</span>') + (b && b.keluar ? '<div class="sub-text">dari tab Pengeluaran</div>' : "");
+    if(cKel) cKel.innerHTML = (kel ? fmtNum(kel) : '<span class="muted-dash">–</span>') + (kel ? '<div class="sub-text">dari tab Pengeluaran</div>' : "");
     const cSisa = document.querySelector(`[data-sisa="${CSS.escape(k)}"]`);
-    if(cSisa) cSisa.innerHTML = b ? `<b>${fmtNum(b.sisa)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>';
+    if(cSisa) cSisa.innerHTML = e.awal !== "" ? `<b>${fmtNum((Number(e.awal)||0) - kel)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>';
     const cBal = document.querySelector(`[data-balance="${CSS.escape(k)}"]`);
     if(cBal && inp.dataset.f !== "alasan") cBal.innerHTML = soBalanceText(b, escapeHtml(k), e.alasan);
   });
