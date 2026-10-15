@@ -2070,11 +2070,6 @@ function renderTerima(){
 // ---------- Tab Pengeluaran: catat pengeluaran harian tiap item ----------
 function renderPengeluaran(){
   const satOpts = SATUAN_LIST.map(s=>`<option ${keluarForm.satuan===s?"selected":""}>${s}</option>`).join("");
-  // Daftar barang yang sudah dikenal (dari pengajuan + SO) untuk saran nama
-  // barang yang sudah dikenal untuk saran nama (hilangkan duplikat, urut abjad)
-  const knownItems = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])]
-    .map(i=>({nama:i.nama, satuan:i.satuan, divisi:i.divisi}))
-    .sort((a,b)=> a.nama.localeCompare(b.nama, "id"));
 
   const recent = outRows.slice().sort((a,b)=> String(b.tanggal).localeCompare(String(a.tanggal)) || String(b.id).localeCompare(String(a.id))).slice(0, 30);
   const recentHtml = recent.length === 0
