@@ -525,7 +525,10 @@ async function loadRecordsOnline(silent=false){
     console.error(e);
     // Sinkron otomatis yang gagal tidak dianggap error: data di layar tetap aman, nanti dicoba lagi.
     if(silent) showSyncStatus("Sinkron tertunda, mencoba lagi...");
-    else showSyncStatus("Gagal sinkron: " + e.message, true);
+    else{
+      showSyncStatus("Gagal sinkron: " + e.message, true);
+      if(!document.getElementById("mainContent").children.length) render();   // jangan biarkan halaman blank
+    }
   }finally{
     isSyncing = false;
   }
@@ -675,6 +678,7 @@ let pendingScrollY = 0;
     if(u.filterTerima) filterTerima = u.filterTerima;
     if(u.filterBulan)  filterBulan  = u.filterBulan;
     if(u.statBulan)    statBulan    = u.statBulan;
+    if(u.terimaTab)    globalThis.__tabPref = u.terimaTab;
     if(typeof u.search === "string") search = u.search;
     if(u.visibleCount >= PAGE_SIZE) visibleCount = u.visibleCount;
     pendingScrollY = u.scrollY || 0;
@@ -687,7 +691,7 @@ function saveUI(){
     const main = document.getElementById("mainContent");
     const y = pendingScrollY || Math.max(window.scrollY || 0, main ? main.scrollTop : 0);
     sessionStorage.setItem(UI_KEY, JSON.stringify({
-      view:v, analysisPeriod, remindLead, analisaSearch, filterDivisi, filterStatus, filterTerima, filterBulan, statBulan, search, visibleCount, scrollY:y
+      view:v, terimaTab, analysisPeriod, remindLead, analisaSearch, filterDivisi, filterStatus, filterTerima, filterBulan, statBulan, search, visibleCount, scrollY:y
     }));
   }catch(e){}
 }
@@ -2002,6 +2006,7 @@ function closeSoHistory(){
 // ---------- Menu Tambah Penerimaan (2 tab: Penerimaan & Pengeluaran) ----------
 let terimaSelId = null;
 let terimaTab = "penerimaan";   // "penerimaan" | "pengeluaran"
+if(globalThis.__tabPref === "pengeluaran" || globalThis.__tabPref === "penerimaan") terimaTab = globalThis.__tabPref;
 const terimaOptions = ()=> records.filter(r=>r.status !== "Batal").slice().reverse();   // terbaru di atas
 
 function renderTerima(){
@@ -2084,7 +2089,7 @@ function renderPengeluaran(){
       </tbody></table>`;
 
   return `
-    <form id="keluarForm" autocomplete="off">
+    <form id="keluarForm" autocomplete="off" onsubmit="return false">
       <div class="section">
         <h3>Pengeluaran Harian (per item)</h3>
         <div class="field-grid">
@@ -2118,7 +2123,30 @@ function bindPengeluaran(){
   const f = document.getElementById("keluarForm");
   if(!f) return;
   const el = n => f.elements[n];
-  // ===== Sugest / dropdown nama barang saat diketik =====
+  // ===== Simpan pengeluaran: dipasang PALING AWAL supaya tombol Simpan selalu berfungsi =====
+  f.onsubmit = (e)=>{
+    e.preventDefault();
+    const nama = el("kNama").value.trim(), qty = el("kQty").value;
+    if(!nama || qty === ""){ alert("Nama barang dan Qty Keluar harus diisi."); return; }
+    let divisi = keluarDivisiNama;
+    try{
+      if(!divisi){
+        const m = analyzeItems().find(i=> i.nama.toLowerCase() === nama.toLowerCase()) || soRows.filter(o=> o.namaBarang.toLowerCase() === nama.toLowerCase())[0];
+        divisi = m ? (m.divisi || "") : "";
+      }
+    }catch(err){ divisi = ""; }
+    outRows.push({id:idFor(), tanggal: el("kTanggal").value || todayISO(), divisi: divisi,
+                  namaBarang: nama, satuan: el("kSatuan").value, qty: Math.max(0, Number(qty)||0),
+                  keterangan: el("kKet").value.trim()});
+    persistOut();
+    keluarForm = { tanggal: todayISO(), nama: "", satuan: "Pcs", qty: "", ket: "" };
+    keluarDivisiNama = "";
+    saveStart(false); saveDone("TERSIMPAN");
+    render();
+  };
+  f.addEventListener("submit", e=> e.preventDefault());   // jaga-jaga: cegah reload halaman
+  // ===== Sugest / dropdown nama barang saat diketik (dibungkus anti-error) =====
+  try{
   const acInput = el("kNama"), acBox = document.getElementById("kNamaAc");
   const allItems = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])]
     .map(i=>({nama:i.nama, satuan:i.satuan, divisi:i.divisi}))
@@ -2157,23 +2185,7 @@ function bindPengeluaran(){
     const m = allItems.find(i=> i.nama.toLowerCase() === v);
     if(m){ if(m.satuan) el("kSatuan").value = m.satuan; keluarDivisiNama = m.divisi || ""; }
   });
-  f.onsubmit = (e)=>{
-    e.preventDefault();
-    const nama = el("kNama").value.trim(), qty = el("kQty").value;
-    if(!nama || qty === ""){ alert("Nama barang dan Qty Keluar harus diisi."); return; }
-    if(!keluarDivisiNama){
-      const m = analyzeItems().find(i=> i.nama.toLowerCase() === nama.toLowerCase()) || soRows.filter(o=> o.namaBarang.toLowerCase() === nama.toLowerCase())[0];
-      keluarDivisiNama = m ? (m.divisi || "") : "";
-    }
-    outRows.push({id:idFor(), tanggal: el("kTanggal").value || todayISO(), divisi: keluarDivisiNama,
-                  namaBarang: nama, satuan: el("kSatuan").value, qty: Math.max(0, Number(qty)||0),
-                  keterangan: el("kKet").value.trim()});
-    persistOut();
-    keluarForm = { tanggal: todayISO(), nama: "", satuan: "Pcs", qty: "", ket: "" };
-    keluarDivisiNama = "";
-    saveStart(false); saveDone("TERSIMPAN ✓");
-    render();
-  };
+  }catch(acErr){ console.error("Autocomplete pengeluaran gagal:", acErr); }
   const rs = document.getElementById("kReset");
   if(rs) rs.onclick = ()=>{ keluarForm = { tanggal: todayISO(), nama: "", satuan: "Pcs", qty: "", ket: "" }; keluarDivisiNama = ""; render(); };
   document.querySelectorAll("[data-out-del]").forEach(b=> b.onclick = ()=>{
@@ -2184,7 +2196,7 @@ function bindPengeluaran(){
 
 function bindTerima(){
   document.querySelectorAll("[data-terima-tab]").forEach(b=> b.onclick = ()=>{ terimaTab = b.dataset.terimaTab; render(); });
-  if(terimaTab === "pengeluaran") bindPengeluaran();
+  if(terimaTab === "pengeluaran"){ try{ bindPengeluaran(); }catch(e){ console.error("Tab pengeluaran error:", e); } }
   const f = document.getElementById("terimaForm");
   if(!f) return;
   const el = n => f.elements[n];
@@ -2575,6 +2587,8 @@ initTheme();
 loadOut();
 if(onlineMode()){
   showSyncStatus("Menghubungkan...");
+  loadRecords();   // tampilkan data lokal lebih dulu supaya halaman tidak blank saat server lambat
+  render();
   loadRecordsOnline().then(startAutoSync);
 }else{
   loadRecords();
