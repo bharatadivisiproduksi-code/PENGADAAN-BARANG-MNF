@@ -327,7 +327,13 @@
   .so-input{width:110px;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:14px;}
   .so-input:focus,.so-new-row input:focus,.so-new-row select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--focus);}
   .so-new{margin-top:16px;}
-  .so-new-row{display:grid;grid-template-columns:1.6fr 100px 110px 120px 110px 36px;gap:10px;margin-bottom:10px;}
+  .so-new-row{display:grid;grid-template-columns:1.6fr 100px 110px 120px 110px 220px 36px;gap:10px;margin-bottom:10px;align-items:start;}
+  /* Tab Penerimaan / Pengeluaran */
+  .tab-row{display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--line);}
+  .tab-btn{padding:10px 22px;font-size:14px;font-weight:600;background:transparent;border:none;border-bottom:3px solid transparent;color:var(--muted);border-radius:8px 8px 0 0;transition:color .15s ease,border-color .15s ease,background .15s ease;}
+  .tab-btn:hover{color:var(--ink);background:var(--row-hover);}
+  .tab-btn.active{color:var(--ink);border-bottom-color:var(--accent);background:var(--panel);}
+  .tab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .so-new-row input,.so-new-row select{padding:9px 10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;color:var(--ink);}
   .so-hint{color:var(--muted);font-size:12.5px;}
   .so-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;margin-right:6px;}
@@ -687,6 +693,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 function loadRecords(){
   loadSoLocal();
   loadAbaikan();
+  loadOut();
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     records = raw ? JSON.parse(raw) : [];
@@ -1352,7 +1359,7 @@ function parseHist(h){
 function normSo(o){
   return {id:String(o.id), bulan:String(o.bulan||"").slice(0,7), divisi:o.divisi||"", namaBarang:String(o.namaBarang||""), satuan:o.satuan||"",
           stokAwal:Number(o.stokAwal)||0, barangMasuk:Number(o.barangMasuk)||0, hasilSO:Number(o.hasilSO)||0,
-          keterangan:o.keterangan||"", history:parseHist(o.history), updatedAt:o.updatedAt||""};
+          keterangan:o.keterangan||"", alasanNotBalance:o.alasanNotBalance||"", history:parseHist(o.history), updatedAt:o.updatedAt||""};
 }
 // Hasil SO = stok FISIK hasil hitung. Pemakaian bulan itu = Stok Awal + Barang Masuk - Hasil SO,
 // dan Hasil SO menjadi Stok Awal bulan berikutnya.
@@ -1367,6 +1374,25 @@ function loadAbaikan(){
 function persistAbaikan(){
   try{ localStorage.setItem(ABAIKAN_KEY, JSON.stringify([...abaikanSet])); }
   catch(e){}
+}
+
+// ---------- Pengeluaran harian item (tab Pengeluaran di menu Tambah Penerimaan) ----------
+// Disimpan lokal di browser (data harian ringan, tidak perlu ke Sheet).
+const OUT_KEY = "pengadaan_keluar_v1";
+let outRows = [];   // {id, tanggal, divisi, namaBarang, satuan, qty, keterangan}
+function persistOut(){ try{ localStorage.setItem(OUT_KEY, JSON.stringify(outRows)); }catch(e){} }
+function loadOut(){
+  try{ outRows = JSON.parse(localStorage.getItem(OUT_KEY) || "[]").map(o=>({
+    id:String(o.id||idFor()), tanggal:String(o.tanggal||"").slice(0,10), divisi:o.divisi||"",
+    namaBarang:String(o.namaBarang||""), satuan:o.satuan||"", qty:Number(o.qty)||0, keterangan:o.keterangan||""
+  })); }catch(e){ outRows = []; }
+}
+// Total pengeluaran 1 item pada 1 bulan (YYYY-MM); nama dibandingkan tanpa peduli besar-kecil huruf
+function keluarBulan(divisi, nama, bulan){
+  const n = String(nama||"").trim().toLowerCase();
+  return outRows.reduce((t,o)=>
+    o.divisi === divisi && String(o.namaBarang).trim().toLowerCase() === n && String(o.tanggal).slice(0,7) === bulan
+    ? t + (Number(o.qty)||0) : t, 0);
 }
 
 const SO_KEY = "pengadaan_so_v1";
@@ -1404,7 +1430,7 @@ function analyzeItems(){
   });
   soRows.forEach(o=>{
     if(!/^\d{4}-\d{2}$/.test(o.bulan) || !String(o.namaBarang||"").trim()) return;
-    getG(o.divisi, o.namaBarang, o.satuan).so.push({m:o.bulan, id:o.id, awal:o.stokAwal, masuk:o.barangMasuk, fisik:o.hasilSO, pakai:soPakai(o), ket:o.keterangan});
+    getG(o.divisi, o.namaBarang, o.satuan).so.push({m:o.bulan, id:o.id, awal:o.stokAwal, masuk:o.barangMasuk, fisik:o.hasilSO, pakai:soPakai(o), ket:o.keterangan, alasan:o.alasanNotBalance||""});
   });
 
   const out = [];
@@ -1688,12 +1714,27 @@ function soDefaults(item, bulan){
     awal:  saved ? String(saved.awal)  : (prev ? String(prev.fisik) : ""),
     masuk: saved ? String(saved.masuk) : String(autoMasuk || 0),
     hasil: saved ? String(saved.fisik) : "",
-    ket:   saved ? (saved.ket || "") : ""
+    ket:   saved ? (saved.ket || "") : "",
+    alasan: saved ? (saved.alasan || "") : ""
   };
 }
 function soEff(item, bulan){
   const d = soDefaults(item, bulan), dr = soDraft[item.key] || {};
-  return {...d, awal: dr.awal ?? d.awal, masuk: dr.masuk ?? d.masuk, hasil: dr.hasil ?? d.hasil, ket: dr.ket ?? d.ket};
+  return {...d, awal: dr.awal ?? d.awal, masuk: dr.masuk ?? d.masuk, hasil: dr.hasil ?? d.hasil, ket: dr.ket ?? d.ket, alasan: dr.alasan ?? d.alasan};
+}
+// Cek balance: Sisa Item = Stok Awal - total Pengeluaran harian bulan itu. Dibandingkan dengan Hasil SO (fisik).
+function soBalance(e, divisi, nama, bulan){
+  if(e.hasil === "" || e.awal === "") return null;
+  const keluar = keluarBulan(divisi, nama, bulan);
+  const sisa = (Number(e.awal)||0) - keluar;
+  return {keluar, sisa, fisik: Number(e.hasil)||0, ok: (Number(e.hasil)||0) === sisa};
+}
+function soBalanceText(b, k, alasan){
+  if(!b) return '<span class="muted-dash">–</span>';
+  return b.ok
+    ? '<span class="rm-badge aman" title="Hasil SO fisik sama dengan Sisa Item (Stok Awal − Pengeluaran)">BALANCE / OK / MANTAP</span>'
+    : `<div><span class="rm-badge terlambat" title="Hasil SO fisik (${fmtNum(b.fisik)}) ≠ Sisa Item (${fmtNum(b.sisa)})">STOK NOT BALANCE</span></div>
+       <input type="text" class="so-ket" data-so="${escapeHtml(k)}" data-f="alasan" value="${escapeHtml(alasan||"")}" style="margin-top:6px;width:190px;" placeholder="Isi alasan stok not balance...">`;
 }
 function soPakaiText(e){
   if(e.hasil === "" || e.awal === "") return '<span class="muted-dash">–</span>';
@@ -1712,34 +1753,46 @@ function renderOpname(){
 
   const rows = items.map(i=>{
     const e = soEff(i, bulan), k = escapeHtml(i.key);
+    const b = soBalance(e, i.divisi, i.nama, bulan);
     const awalNote = e.prev
       ? (e.saved && e.saved.awal !== e.prev.fisik
           ? `<div class="sub-text so-warn">Hasil SO ${fmtBulan(e.prev.m)}: ${fmtNum(e.prev.fisik)}</div>`
           : `<div class="sub-text">dari Hasil SO ${fmtBulan(e.prev.m)}</div>`)
       : '<div class="sub-text">isi stok awal (pertama kali)</div>';
     const masukNote = e.autoMasuk ? `<div class="sub-text">penerimaan bulan ini: ${fmtNum(e.autoMasuk)}</div>` : "";
+    const keluarNote = b && b.keluar ? `<div class="sub-text">dari tab Pengeluaran</div>` : "";
     return `<tr>
       <td>${escapeHtml(i.nama)}${e.saved ? ' <span class="rm-badge aman">tersimpan</span>' : ""}</td>
       <td>${escapeHtml(i.satuan)}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="awal" value="${escapeHtml(e.awal)}">${awalNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="masuk" value="${escapeHtml(e.masuk)}">${masukNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
+      <td data-keluar="${k}">${b && b.keluar ? fmtNum(b.keluar) : '<span class="muted-dash">–</span>'}${keluarNote}</td>
+      <td data-sisa="${k}">${b ? `<b>${fmtNum(b.sisa)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>'}</td>
       <td class="so-akhir" data-akhir="${k}">${soPakaiText(e)}</td>
+      <td data-balance="${k}">${soBalanceText(b, k, e.alasan)}</td>
       <td><input type="text" class="so-ket" data-so="${k}" data-f="ket" value="${escapeHtml(e.ket)}" placeholder="opsional"></td>
     </tr>`;
   }).join("");
   const itemsTable = items.length
-    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pemakaian</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Sisa Item (Awal − Keluar)</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div>`;
 
-  const newRows = soNewRows.map((r,i)=>`<div class="so-new-row">
+  const newRows = soNewRows.map((r,i)=>{
+    const b = (r.awal !== "" && r.hasil !== "") ? (()=>{ const kel = keluarBulan(soDivisi, r.nama, bulan); const sisa = (Number(r.awal)||0) - kel; return {keluar:kel, sisa, fisik:Number(r.hasil)||0, ok:(Number(r.hasil)||0) === sisa}; })() : null;
+    const checkHtml = !b ? '<span class="muted-dash">–</span>' : (b.ok
+      ? '<span class="rm-badge aman">BALANCE / OK</span>'
+      : `<div><span class="rm-badge terlambat" title="Fisik ${fmtNum(b.fisik)} ≠ Sisa ${fmtNum(b.sisa)}">NOT BALANCE</span><div class="sub-text">sisa: ${fmtNum(b.sisa)}</div></div>
+         <input type="text" class="so-ket" data-sn="${i}" data-f="alasan" value="${escapeHtml(r.alasan||"")}" placeholder="Alasan not balance..." style="margin-top:4px;width:180px;">`);
+    return `<div class="so-new-row">
       <input placeholder="Nama barang" value="${escapeHtml(r.nama)}" data-sn="${i}" data-f="nama">
       <select data-sn="${i}" data-f="satuan">${satOpts(r.satuan)}</select>
       <input type="number" min="0" step="any" placeholder="Stok awal" value="${escapeHtml(r.awal)}" data-sn="${i}" data-f="awal">
       <input type="number" min="0" step="any" placeholder="Barang masuk" value="${escapeHtml(r.masuk)}" data-sn="${i}" data-f="masuk">
       <input type="number" min="0" step="any" placeholder="Hasil SO" value="${escapeHtml(r.hasil)}" data-sn="${i}" data-f="hasil">
+      <div data-sncheck="${i}">${checkHtml}</div>
       <button type="button" class="btn-plain" data-sn-del="${i}" aria-label="Hapus baris">×</button>
-    </div>`).join("");
+    </div>`;}).join("");
 
   const hist = soRows.filter(o=>o.divisi === soDivisi).slice()
     .sort((a,b)=> b.bulan.localeCompare(a.bulan) || a.namaBarang.localeCompare(b.namaBarang, "id")).slice(0, 40);
@@ -1747,10 +1800,11 @@ function renderOpname(){
       <td>${fmtBulan(o.bulan)}</td><td>${escapeHtml(o.namaBarang)}</td><td>${escapeHtml(o.satuan)}</td>
       <td>${fmtNum(o.stokAwal)}</td><td>${fmtNum(o.barangMasuk)}</td><td>${fmtNum(o.hasilSO)}</td>
       <td>${soPakai(o) < 0 ? `<span class="rm-badge terlambat">${fmtNum(soPakai(o))} · cek</span>` : `<b>${fmtNum(soPakai(o))}</b>`}</td>
+      <td>${escapeHtml(o.alasanNotBalance||"")}${o.alasanNotBalance ? "" : (Number(o.hasilSO) === ((Number(o.stokAwal)||0) - keluarBulan(o.divisi, o.namaBarang, o.bulan)) ? ' <span class="rm-badge aman" title="Hasil SO sama dengan Stok Awal − Pengeluaran">OK</span>' : ' <span class="rm-badge terlambat" title="Hasil SO tidak sama dengan Stok Awal − Pengeluaran dan belum ada alasan">NOT BALANCE</span>')}</td>
       <td><button class="so-del" data-so-hist="${escapeHtml(o.id)}" title="Riwayat perubahan">🕘 ${o.history.length}</button>
           <button class="so-del" data-so-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`).join("");
   const histTable = hist.length
-    ? `<table><thead><tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th></th></tr></thead><tbody>${histRows}</tbody></table>`
+    ? `<table><thead><tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th>Alasan / Balance</th><th></th></tr></thead><tbody>${histRows}</tbody></table>`
     : `<div class="empty-state">Belum ada data Stock Opname untuk ${escapeHtml(soDivisi)}.</div>`;
 
   return `
@@ -1783,10 +1837,10 @@ function renderOpname(){
 
 function buildSoRecord(divisi, nama, satuan, bulan, e, existingId){
   const old = existingId ? soRows.find(r=>r.id === existingId) : null;
-  const entry = {w:new Date().toISOString(), a:Number(e.awal)||0, m:Number(e.masuk)||0, h:Number(e.hasil)||0, k:e.ket||""};
+  const entry = {w:new Date().toISOString(), a:Number(e.awal)||0, m:Number(e.masuk)||0, h:Number(e.hasil)||0, k:e.ket||"", n:e.alasan||""};
   const history = ((old && old.history) || []).concat([entry]).slice(-20);
   return {id: existingId || idFor(), bulan, divisi, namaBarang:nama, satuan, stokAwal:entry.a, barangMasuk:entry.m,
-          hasilSO:entry.h, keterangan:e.ket||"", history};
+          hasilSO:entry.h, keterangan:e.ket||"", alasanNotBalance:e.alasan||"", history};
 }
 
 function bindOpname(){
@@ -1798,32 +1852,65 @@ function bindOpname(){
   document.querySelectorAll("[data-so][data-f]").forEach(inp=> inp.oninput = ()=>{
     const k = inp.dataset.so;
     (soDraft[k] = soDraft[k] || {})[inp.dataset.f] = inp.value;
-    const it = byKey.get(k), cell = document.querySelector(`[data-akhir="${CSS.escape(k)}"]`);
-    if(it && cell) cell.innerHTML = soPakaiText(soEff(it, bulan));
+    const it = byKey.get(k);
+    if(!it) return;
+    const e = soEff(it, bulan);
+    const cell = document.querySelector(`[data-akhir="${CSS.escape(k)}"]`);
+    if(cell) cell.innerHTML = soPakaiText(e);
+    const b = soBalance(e, it.divisi, it.nama, bulan);
+    const cKel = document.querySelector(`[data-keluar="${CSS.escape(k)}"]`);
+    if(cKel) cKel.innerHTML = (b && b.keluar ? fmtNum(b.keluar) : '<span class="muted-dash">–</span>') + (b && b.keluar ? '<div class="sub-text">dari tab Pengeluaran</div>' : "");
+    const cSisa = document.querySelector(`[data-sisa="${CSS.escape(k)}"]`);
+    if(cSisa) cSisa.innerHTML = b ? `<b>${fmtNum(b.sisa)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>';
+    const cBal = document.querySelector(`[data-balance="${CSS.escape(k)}"]`);
+    if(cBal && inp.dataset.f !== "alasan") cBal.innerHTML = soBalanceText(b, escapeHtml(k), e.alasan);
   });
-  document.getElementById("soAddNew").onclick = ()=>{ soNewRows.push({nama:"", satuan:"Pcs", awal:"", masuk:"0", hasil:""}); render(); };
-  document.querySelectorAll("[data-sn]").forEach(el=> el.oninput = el.onchange = ()=>{ soNewRows[Number(el.dataset.sn)][el.dataset.f] = el.value; });
+  document.getElementById("soAddNew").onclick = ()=>{ soNewRows.push({nama:"", satuan:"Pcs", awal:"", masuk:"0", hasil:"", alasan:""}); render(); };
+  document.querySelectorAll("[data-sn]").forEach(el=> el.oninput = el.onchange = ()=>{
+    const row = soNewRows[Number(el.dataset.sn)];
+    row[el.dataset.f] = el.value;
+    // update cek balance baris item baru secara langsung
+    if(el.dataset.f === "awal" || el.dataset.f === "hasil" || el.dataset.f === "nama"){
+      const cell = document.querySelector(`[data-sncheck="${el.dataset.sn}"]`);
+      if(cell){
+        const kel = keluarBulan(soDivisi, row.nama, bulan);
+        if(row.awal !== "" && row.hasil !== ""){
+          const sisa = (Number(row.awal)||0) - kel, fisik = Number(row.hasil)||0;
+          cell.innerHTML = fisik === sisa
+            ? '<span class="rm-badge aman">BALANCE / OK</span>'
+            : `<div><span class="rm-badge terlambat">NOT BALANCE</span><div class="sub-text">sisa: ${fmtNum(sisa)}</div></div>
+               <input type="text" class="so-ket" data-sn="${el.dataset.sn}" data-f="alasan" value="${escapeHtml(row.alasan||"")}" placeholder="Alasan not balance..." style="margin-top:4px;width:180px;">`;
+          cell.querySelector("input").oninput = cell.querySelector("input").onchange = ()=>{ row.alasan = cell.querySelector("input").value; };
+        }else cell.innerHTML = '<span class="muted-dash">–</span>';
+      }
+    }
+  });
   document.querySelectorAll("[data-sn-del]").forEach(b=> b.onclick = ()=>{ soNewRows.splice(Number(b.dataset.snDel),1); render(); });
   document.querySelectorAll("[data-so-del]").forEach(b=> b.onclick = ()=> askDeleteSo(b.dataset.soDel));
   document.querySelectorAll("[data-so-hist]").forEach(b=> b.onclick = ()=> openSoHistory(b.dataset.soHist));
   document.getElementById("soSave").onclick = ()=>{
     if(!/^\d{4}-\d{2}$/.test(bulan)){ alert("Pilih bulan SO dulu."); return; }
-    const recs = [], missing = [];
+    const recs = [], missing = [], missingAlasan = [];
     items.forEach(i=>{
       const e = soEff(i, bulan);
       if(e.hasil === "") return;                                   // tidak diisi = tidak disimpan
       const sv = e.saved;
-      if(sv && Number(e.awal) === sv.awal && Number(e.masuk) === sv.masuk && Number(e.hasil) === sv.fisik && (e.ket||"") === (sv.ket||"")) return;   // tidak berubah
+      if(sv && Number(e.awal) === sv.awal && Number(e.masuk) === sv.masuk && Number(e.hasil) === sv.fisik && (e.ket||"") === (sv.ket||"") && (e.alasan||"") === (sv.alasan||"")) return;   // tidak berubah
       if(e.awal === ""){ missing.push(i.nama); return; }
+      const b = soBalance(e, i.divisi, i.nama, bulan);
+      if(b && !b.ok && !(e.alasan||"").trim()){ missingAlasan.push(i.nama); return; }   // stok not balance wajib ada alasannya
       recs.push(buildSoRecord(i.divisi, i.nama, i.satuan, bulan, e, sv ? sv.id : null));
     });
     for(const r of soNewRows){
       if(!r.nama.trim() && r.hasil === "" && r.awal === "") continue;
       if(!r.nama.trim() || r.hasil === "" || r.awal === ""){ alert("Item baru: nama barang, stok awal, dan hasil SO harus diisi."); return; }
       const ex = soRows.find(o=> o.bulan === bulan && itemKey(o.divisi,o.namaBarang,o.satuan) === itemKey(soDivisi, r.nama, r.satuan));
-      recs.push(buildSoRecord(soDivisi, r.nama.trim(), r.satuan, bulan, {awal:r.awal, masuk:r.masuk||"0", hasil:r.hasil, ket:""}, ex ? ex.id : null));
+      const kel = keluarBulan(soDivisi, r.nama, bulan);
+      if((Number(r.hasil)||0) !== ((Number(r.awal)||0) - kel) && !(r.alasan||"").trim()){ missingAlasan.push(r.nama.trim()); continue; }
+      recs.push(buildSoRecord(soDivisi, r.nama.trim(), r.satuan, bulan, {awal:r.awal, masuk:r.masuk||"0", hasil:r.hasil, ket:"", alasan:r.alasan||""}, ex ? ex.id : null));
     }
     if(missing.length){ alert("Stok Awal belum diisi untuk:\n- " + missing.join("\n- ") + "\n\nIsi stok awal (hitungan pertama kali) dulu."); return; }
+    if(missingAlasan.length){ alert("STOK NOT BALANCE — alasan belum diisi untuk:\n- " + missingAlasan.join("\n- ") + "\n\nIsi kolom alasan di baris tersebut (cek balance) sebelum menyimpan."); return; }
     if(!recs.length){ alert("Belum ada Hasil SO baru yang diisi."); return; }
     soDraft = {}; soNewRows = [];
     saveSoMany(recs).catch(err=>alert(err.message));
@@ -1893,9 +1980,9 @@ function openSoHistory(id){
   document.getElementById("soHistTitle").textContent = "Riwayat SO — " + o.namaBarang + " (" + fmtBulan(o.bulan) + ")";
   const rows = o.history.slice().reverse().map(h=>`<tr>
     <td>${escapeHtml(new Date(h.w).toLocaleString("id-ID"))}</td><td>${fmtNum(h.a)}</td><td>${fmtNum(h.m)}</td><td>${fmtNum(h.h)}</td>
-    <td><b>${fmtNum((Number(h.a)||0)+(Number(h.m)||0)-(Number(h.h)||0))}</b></td><td>${escapeHtml(h.k||"")}</td></tr>`).join("");
+    <td><b>${fmtNum((Number(h.a)||0)+(Number(h.m)||0)-(Number(h.h)||0))}</b></td><td>${escapeHtml(h.k||"")}</td><td>${escapeHtml(h.n||"")}</td></tr>`).join("");
   document.getElementById("soHistBody").innerHTML = o.history.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th>Keterangan</th><th>Alasan Not Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : '<div class="empty-state">Belum ada riwayat perubahan.</div>';
   lockScroll();
   document.getElementById("soHistModal").hidden = false;
@@ -1905,8 +1992,9 @@ function closeSoHistory(){
   unlockScroll();
 }
 
-// ---------- Menu Tambah Penerimaan ----------
+// ---------- Menu Tambah Penerimaan (2 tab: Penerimaan & Pengeluaran) ----------
 let terimaSelId = null;
+let terimaTab = "penerimaan";   // "penerimaan" | "pengeluaran"
 const terimaOptions = ()=> records.filter(r=>r.status !== "Batal").slice().reverse();   // terbaru di atas
 
 function renderTerima(){
@@ -1923,14 +2011,7 @@ function renderTerima(){
           <td>${escapeHtml(r.qtyDiterima)} ${escapeHtml(r.satuan)}${terimaBadge(r)}</td>
           <td>${formatTgl(r.tglDiterima)}</td></tr>`).join("")}
       </tbody></table>`;
-  return `
-    <div class="page-header">
-      <div>
-        <h1>Tambah Penerimaan</h1>
-        <p>Pilih No. Pengadaan, data barang terisi otomatis. Lalu isi jumlah dan tanggal yang diterima.</p>
-      </div>
-      <div class="header-actions">${themeToggleHTML()}</div>
-    </div>
+  const penerimaanHtml = `
     <form id="terimaForm" autocomplete="off">
       <div class="section">
         <h3>Pilih Pengadaan</h3>
@@ -1962,11 +2043,108 @@ function renderTerima(){
       </div>
     </form>
     <h2 class="sub-title">Penerimaan Terakhir</h2>
+    <div class="table-wrap">${recentHtml}</div>`;
+  return `
+    <div class="page-header">
+      <div>
+        <h1>Tambah Penerimaan</h1>
+        <p>Pilih No. Pengadaan, data barang terisi otomatis. Lalu isi jumlah dan tanggal yang diterima.</p>
+      </div>
+      <div class="header-actions">${themeToggleHTML()}</div>
+    </div>
+    <div class="tab-row">
+      <button type="button" class="tab-btn ${terimaTab==="penerimaan"?"active":""}" data-terima-tab="penerimaan">Penerimaan</button>
+      <button type="button" class="tab-btn ${terimaTab==="pengeluaran"?"active":""}" data-terima-tab="pengeluaran">Pengeluaran</button>
+    </div>
+    ${terimaTab === "pengeluaran" ? renderPengeluaran() : penerimaanHtml}
+  `;
+}
+
+// ---------- Tab Pengeluaran: catat pengeluaran harian tiap item ----------
+function renderPengeluaran(){
+  const divOpts = DIVISI_LIST.map(d=>`<option ${keluarForm.divisi===d?"selected":""}>${d}</option>`).join("");
+  const satOpts = SATUAN_LIST.map(s=>`<option ${keluarForm.satuan===s?"selected":""}>${s}</option>`).join("");
+  // Daftar barang yang sudah dikenal (dari pengajuan + SO) untuk saran nama
+  const known = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])];
+  const dataList = known.filter(i=>i.divisi === keluarForm.divisi).map(i=>`<option value="${escapeHtml(i.nama)}"></option>`).join("");
+
+  const recent = outRows.slice().sort((a,b)=> String(b.tanggal).localeCompare(String(a.tanggal)) || String(b.id).localeCompare(String(a.id))).slice(0, 30);
+  const recentHtml = recent.length === 0
+    ? `<div class="empty-state">Belum ada pengeluaran yang dicatat. Pengeluaran harian dipakai untuk cek balance di Stock Opname.</div>`
+    : `<table><thead><tr><th>Tanggal</th><th>Divisi</th><th>Barang</th><th>Qty Keluar</th><th>Keterangan</th><th></th></tr></thead><tbody>
+        ${recent.map(o=>`<tr>
+          <td>${formatTgl(o.tanggal)}</td>
+          <td>${escapeHtml(o.divisi)}</td>
+          <td>${escapeHtml(o.namaBarang)}</td>
+          <td>${fmtNum(o.qty)} ${escapeHtml(o.satuan)}</td>
+          <td>${escapeHtml(o.keterangan)}</td>
+          <td><button class="so-del" data-out-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`).join("")}
+      </tbody></table>`;
+
+  return `
+    <form id="keluarForm" autocomplete="off">
+      <div class="section">
+        <h3>Pengeluaran Harian (per item)</h3>
+        <div class="field-grid">
+          <label class="field"><span>Tanggal <span class="req">*</span></span><input type="date" name="kTanggal" value="${escapeHtml(keluarForm.tanggal)}" required></label>
+          <label class="field"><span>Divisi <span class="req">*</span></span><select name="kDivisi">${divOpts}</select></label>
+          <label class="field"><span>Nama Barang <span class="req">*</span></span>
+            <input name="kNama" list="keluarList" placeholder="Ketik atau pilih nama barang" value="${escapeHtml(keluarForm.nama)}" required>
+            <datalist id="keluarList">${dataList}</datalist></label>
+          <label class="field"><span>Satuan</span><select name="kSatuan">${satOpts}</select></label>
+          <label class="field"><span>Qty Keluar <span class="req">*</span></span><input type="number" min="0" step="any" name="kQty" value="${escapeHtml(keluarForm.qty)}" required></label>
+          <label class="field"><span>Keterangan</span><input name="kKet" value="${escapeHtml(keluarForm.ket)}" placeholder="mis. dipakai produksi line 1"></label>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-accent">Simpan Pengeluaran</button>
+        <button type="button" class="btn-plain" id="kReset">Reset</button>
+        <span class="so-hint">Pengeluaran disimpan di perangkat ini dan dipakai untuk cek balance di Stock Opname.</span>
+      </div>
+    </form>
+    <h2 class="sub-title">Pengeluaran Terakhir</h2>
     <div class="table-wrap">${recentHtml}</div>
   `;
 }
 
+// isian form pengeluaran (agar tidak hilang saat render ulang)
+let keluarForm = { tanggal: todayISO(), divisi: "GA", nama: "", satuan: "Pcs", qty: "", ket: "" };
+
+function bindPengeluaran(){
+  const f = document.getElementById("keluarForm");
+  if(!f) return;
+  const el = n => f.elements[n];
+  // isi satuan otomatis bila nama barang cocok dengan item yang sudah dikenal
+  el("kNama").addEventListener("change", ()=>{
+    const v = el("kNama").value.trim().toLowerCase();
+    if(!v) return;
+    const m = analyzeItems().find(i=> i.divisi === el("kDivisi").value && i.nama.toLowerCase() === v);
+    if(m && m.satuan) el("kSatuan").value = m.satuan;
+  });
+  el("kDivisi").onchange = ()=>{ keluarForm.divisi = el("kDivisi").value; render(); };
+  f.onsubmit = (e)=>{
+    e.preventDefault();
+    const nama = el("kNama").value.trim(), qty = el("kQty").value;
+    if(!nama || qty === ""){ alert("Nama barang dan Qty Keluar harus diisi."); return; }
+    outRows.push({id:idFor(), tanggal: el("kTanggal").value || todayISO(), divisi: el("kDivisi").value,
+                  namaBarang: nama, satuan: el("kSatuan").value, qty: Math.max(0, Number(qty)||0),
+                  keterangan: el("kKet").value.trim()});
+    persistOut();
+    keluarForm = { tanggal: todayISO(), divisi: keluarForm.divisi, nama: "", satuan: "Pcs", qty: "", ket: "" };
+    saveStart(false); saveDone("TERSIMPAN ✓");
+    render();
+  };
+  const rs = document.getElementById("kReset");
+  if(rs) rs.onclick = ()=>{ keluarForm = { tanggal: todayISO(), divisi: keluarForm.divisi, nama: "", satuan: "Pcs", qty: "", ket: "" }; render(); };
+  document.querySelectorAll("[data-out-del]").forEach(b=> b.onclick = ()=>{
+    const i = outRows.findIndex(o=>o.id === b.dataset.outDel);
+    if(i >= 0){ outRows.splice(i,1); persistOut(); render(); }
+  });
+}
+
 function bindTerima(){
+  document.querySelectorAll("[data-terima-tab]").forEach(b=> b.onclick = ()=>{ terimaTab = b.dataset.terimaTab; render(); });
+  if(terimaTab === "pengeluaran") bindPengeluaran();
   const f = document.getElementById("terimaForm");
   if(!f) return;
   const el = n => f.elements[n];
@@ -2354,6 +2532,7 @@ document.querySelectorAll(".nav button").forEach(b=>{
 
 // ---------- Init ----------
 initTheme();
+loadOut();
 if(onlineMode()){
   showSyncStatus("Menghubungkan...");
   loadRecordsOnline().then(startAutoSync);
