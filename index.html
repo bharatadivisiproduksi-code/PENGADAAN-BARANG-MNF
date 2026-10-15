@@ -334,6 +334,13 @@
   .tab-btn:hover{color:var(--ink);background:var(--row-hover);}
   .tab-btn.active{color:var(--ink);border-bottom-color:var(--accent);background:var(--panel);}
   .tab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  /* Sugest / dropdown nama barang */
+  .ac-box{position:relative;}
+  .ac-box input{width:100%;}
+  .ac-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);max-height:220px;overflow-y:auto;z-index:60;}
+  .ac-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-size:13px;cursor:pointer;}
+  .ac-item:hover,.ac-item:active{background:var(--row-hover);}
+  .ac-item+.ac-item{border-top:1px solid var(--line);}
   .so-new-row input,.so-new-row select{padding:9px 10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;color:var(--ink);}
   .so-hint{color:var(--muted);font-size:12.5px;}
   .so-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;margin-right:6px;}
@@ -2064,8 +2071,10 @@ function renderTerima(){
 function renderPengeluaran(){
   const satOpts = SATUAN_LIST.map(s=>`<option ${keluarForm.satuan===s?"selected":""}>${s}</option>`).join("");
   // Daftar barang yang sudah dikenal (dari pengajuan + SO) untuk saran nama
-  const known = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])];
-  const dataList = known.map(i=>`<option value="${escapeHtml(i.nama)}"></option>`).join("");
+  // barang yang sudah dikenal untuk saran nama (hilangkan duplikat, urut abjad)
+  const knownItems = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])]
+    .map(i=>({nama:i.nama, satuan:i.satuan, divisi:i.divisi}))
+    .sort((a,b)=> a.nama.localeCompare(b.nama, "id"));
 
   const recent = outRows.slice().sort((a,b)=> String(b.tanggal).localeCompare(String(a.tanggal)) || String(b.id).localeCompare(String(a.id))).slice(0, 30);
   const recentHtml = recent.length === 0
@@ -2086,8 +2095,10 @@ function renderPengeluaran(){
         <div class="field-grid">
           <label class="field"><span>Tanggal <span class="req">*</span></span><input type="date" name="kTanggal" value="${escapeHtml(keluarForm.tanggal)}" required></label>
           <label class="field"><span>Nama Barang <span class="req">*</span></span>
-            <input name="kNama" list="keluarList" placeholder="Ketik atau pilih nama barang" value="${escapeHtml(keluarForm.nama)}" required>
-            <datalist id="keluarList">${dataList}</datalist></label>
+            <div class="ac-box">
+              <input name="kNama" id="kNamaInput" placeholder="Ketik nama barang (muncul saran)..." value="${escapeHtml(keluarForm.nama)}" autocomplete="off" required>
+              <div class="ac-list" id="kNamaAc" hidden></div>
+            </div></label>
           <label class="field"><span>Satuan</span><select name="kSatuan">${satOpts}</select></label>
           <label class="field"><span>Qty Keluar <span class="req">*</span></span><input type="number" min="0" step="any" name="kQty" value="${escapeHtml(keluarForm.qty)}" required></label>
           <label class="field"><span>Keterangan</span><input name="kKet" value="${escapeHtml(keluarForm.ket)}" placeholder="mis. dipakai produksi line 1"></label>
@@ -2112,11 +2123,43 @@ function bindPengeluaran(){
   const f = document.getElementById("keluarForm");
   if(!f) return;
   const el = n => f.elements[n];
-  // isi satuan & divisi otomatis bila nama barang cocok dengan item yang sudah dikenal
-  el("kNama").addEventListener("change", ()=>{
-    const v = el("kNama").value.trim().toLowerCase();
+  // ===== Sugest / dropdown nama barang saat diketik =====
+  const acInput = el("kNama"), acBox = document.getElementById("kNamaAc");
+  const allItems = [...new Map([...analyzeItems().map(i=>[itemKey(i.divisi,i.nama,i.satuan), i]), ...soRows.map(o=>[itemKey(o.divisi,o.namaBarang,o.satuan), {divisi:o.divisi, nama:o.namaBarang, satuan:o.satuan}])])]
+    .map(i=>({nama:i.nama, satuan:i.satuan, divisi:i.divisi}))
+    .sort((a,b)=> a.nama.localeCompare(b.nama, "id"));
+  const applyItem = (it)=>{
+    acInput.value = it.nama;
+    if(it.satuan) el("kSatuan").value = it.satuan;
+    keluarDivisiNama = it.divisi || "";
+    hideAc();
+  };
+  const hideAc = ()=>{ if(acBox) acBox.hidden = true; };
+  let acList = [];   // daftar saran yang sedang tampil
+  const showAc = ()=>{
+    if(!acBox) return;
+    const q = acInput.value.trim().toLowerCase();
+    acList = (q ? allItems.filter(i=> i.nama.toLowerCase().includes(q)) : allItems).slice(0, 30);
+    if(!acList.length){ hideAc(); return; }
+    acBox.innerHTML = acList.map((it,idx)=>
+      `<div class="ac-item" data-ac="${idx}"><span>${escapeHtml(it.nama)}</span><span class="div-chip">${escapeHtml(it.divisi)}</span></div>`).join("");
+    acBox.querySelectorAll("[data-ac]").forEach(d=>{
+      d.addEventListener("mousedown", (ev)=>{ ev.preventDefault(); applyItem(acList[Number(d.dataset.ac)]); });
+    });
+    acBox.hidden = false;
+  };
+  acInput.addEventListener("focus", showAc);
+  acInput.addEventListener("input", showAc);
+  acInput.addEventListener("blur", ()=> setTimeout(hideAc, 150));
+  acInput.addEventListener("keydown", (ev)=>{
+    if(ev.key === "Escape") hideAc();
+    if(ev.key === "Enter" && acBox && !acBox.hidden && acList.length){ ev.preventDefault(); applyItem(acList[0]); }
+  });
+  // isi satuan & divisi otomatis bila nama diketik manual dan cocok dengan item yang dikenal
+  acInput.addEventListener("change", ()=>{
+    const v = acInput.value.trim().toLowerCase();
     if(!v) return;
-    const m = analyzeItems().find(i=> i.nama.toLowerCase() === v) || soRows.filter(o=> o.namaBarang.toLowerCase() === v).slice().sort((a,b)=> b.bulan.localeCompare(a.bulan))[0];
+    const m = allItems.find(i=> i.nama.toLowerCase() === v);
     if(m){ if(m.satuan) el("kSatuan").value = m.satuan; keluarDivisiNama = m.divisi || ""; }
   });
   f.onsubmit = (e)=>{
