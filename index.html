@@ -1881,7 +1881,13 @@ function bindOpname(){
     const cSisa = document.querySelector(`[data-sisa="${CSS.escape(k)}"]`);
     if(cSisa) cSisa.innerHTML = e.awal !== "" ? `<b>${fmtNum((Number(e.awal)||0) - kel)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>';
     const cBal = document.querySelector(`[data-balance="${CSS.escape(k)}"]`);
-    if(cBal && inp.dataset.f !== "alasan") cBal.innerHTML = soBalanceText(b, escapeHtml(k), e.alasan);
+    if(cBal && inp.dataset.f !== "alasan"){
+      cBal.innerHTML = soBalanceText(b, escapeHtml(k), e.alasan);
+      // pasang ulang listener pada input alasan yang baru dibuat via innerHTML,
+      // supaya alasan yang diketik tersimpan ke draft meski elemennya dibuat ulang
+      const alIn = cBal.querySelector('[data-f="alasan"]');
+      if(alIn) alIn.oninput = ()=>{ (soDraft[k] = soDraft[k] || {}).alasan = alIn.value; };
+    }
   });
   document.getElementById("soAddNew").onclick = ()=>{ soNewRows.push({nama:"", satuan:"Pcs", awal:"", masuk:"0", hasil:"", alasan:""}); render(); };
   document.querySelectorAll("[data-sn]").forEach(el=> el.oninput = el.onchange = ()=>{
