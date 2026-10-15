@@ -303,6 +303,8 @@
   .rm-badge.aman{color:#1B8A5A;background:rgba(31,163,107,.14);}
   .rm-badge.data{color:var(--muted);background:var(--paper-deep);}
   .rm-btn{padding:6px 12px !important;font-size:12.5px !important;}
+  .abaikan-btn{color:var(--muted) !important;}
+  .rm-badge.diabaikan{color:var(--muted);background:var(--paper-deep);}
   .remind-panel{margin-top:16px;}
   .remind-panel h2{margin:0;}
   .remind-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;}
@@ -684,6 +686,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 // ---------- Storage ----------
 function loadRecords(){
   loadSoLocal();
+  loadAbaikan();
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     records = raw ? JSON.parse(raw) : [];
@@ -1354,6 +1357,18 @@ function normSo(o){
 // Hasil SO = stok FISIK hasil hitung. Pemakaian bulan itu = Stok Awal + Barang Masuk - Hasil SO,
 // dan Hasil SO menjadi Stok Awal bulan berikutnya.
 const soPakai = r => (Number(r.stokAwal)||0) + (Number(r.barangMasuk)||0) - (Number(r.hasilSO)||0);
+// ---------- Fitur Abaikan (Analisa Kebutuhan) ----------
+const ABAIKAN_KEY = "pengadaan_abaikan_v1";
+let abaikanSet = new Set();
+function loadAbaikan(){
+  try{ abaikanSet = new Set(JSON.parse(localStorage.getItem(ABAIKAN_KEY) || "[]")); }
+  catch(e){ abaikanSet = new Set(); }
+}
+function persistAbaikan(){
+  try{ localStorage.setItem(ABAIKAN_KEY, JSON.stringify([...abaikanSet])); }
+  catch(e){}
+}
+
 const SO_KEY = "pengadaan_so_v1";
 function persistSo(){ try{ localStorage.setItem(SO_KEY, JSON.stringify(soRows)); }catch(e){} }
 function loadSoLocal(){
@@ -1451,7 +1466,7 @@ function analyzeItems(){
   });
   return out;
 }
-const reminderItems = ()=> analyzeItems().filter(i=>i.status==="terlambat" || i.status==="segera")
+const reminderItems = ()=> analyzeItems().filter(i=> (i.status==="terlambat" || i.status==="segera") && !abaikanSet.has(i.key))
                                          .sort((a,b)=> (a.daysLeft ?? -9999) - (b.daysLeft ?? -9999));
 
 function rmBadge(it){
@@ -1476,6 +1491,21 @@ function bindAjukan(){
   document.querySelectorAll("[data-ajukan]").forEach(b=> b.onclick = ()=>{
     const it = analyzeItems().find(x=>x.key === b.dataset.ajukan);
     if(it) startNewForm(ajukanPref(it));
+  });
+  document.querySelectorAll("[data-abaikan]").forEach(b=> b.onclick = ()=>{
+    const key = b.dataset.abaikan;
+    if(!abaikanSet.has(key)){
+      abaikanSet.add(key);
+      persistAbaikan();
+    }
+    render();
+    updateNavBadge();
+  });
+  document.querySelectorAll("[data-unabaikan]").forEach(b=> b.onclick = ()=>{
+    abaikanSet.delete(b.dataset.unabaikan);
+    persistAbaikan();
+    render();
+    updateNavBadge();
   });
   const go = document.getElementById("goAnalisa");
   if(go) go.onclick = ()=> setView("analisa");
@@ -1502,6 +1532,7 @@ function renderRemindPanel(){
       </div>
       ${rmBadge(it)}
       <button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(it.key)}">Ajukan</button>
+      <button type="button" class="btn-outline rm-btn abaikan-btn" data-abaikan="${escapeHtml(it.key)}" title="Sembunyikan item ini dari pengingat">Abaikan</button>
     </div>`).join("");
   const body = list.length === 0
     ? `<div class="empty-state">Belum ada item yang perlu diajukan ulang. Item dihitung setelah ada data Stock Opname (SO), atau minimal 2 pengajuan.</div>`
@@ -1570,7 +1601,10 @@ function renderAnalisa(){
           <td>${i.last ? formatTgl(toYMD(i.last.d)) + `<div class="sub-text">${fmtNum(i.lastQty)} ${escapeHtml(i.satuan)}</div>` : '<span class="muted-dash">–</span>'}</td>
           <td>${i.runout ? formatTgl(toYMD(i.runout)) : '<span class="muted-dash">–</span>'}</td>
           <td>${rmBadge(i)}</td>
-          <td>${(i.status==="terlambat"||i.status==="segera") ? `<button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button>` : ""}</td>
+          <td>${(()=>{ const isIgnored = abaikanSet.has(i.key);
+            if(isIgnored) return `<span class="rm-badge data" title="Item ini diabaikan dan tidak muncul di pengingat">Diabaikan</span> <button type="button" class="btn-outline rm-btn" data-unabaikan="${escapeHtml(i.key)}" title="Tampilkan lagi di pengingat">Batalkan</button>`;
+            if(i.status==="terlambat"||i.status==="segera") return `<button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button> <button type="button" class="btn-outline rm-btn abaikan-btn" data-abaikan="${escapeHtml(i.key)}" title="Sembunyikan item ini dari pengingat">Abaikan</button>`;
+            return ""; })()}</td>
         </tr>`).join("")}
       </tbody></table>`;
     return `<h2 class="sub-title">${escapeHtml(div)} <span class="count-chip">${all.length} item</span></h2><div class="table-wrap">${body}</div>`;
