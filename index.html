@@ -1742,14 +1742,15 @@ function soEff(item, bulan){
 function soBalance(e, divisi, nama, bulan){
   if(e.hasil === "" || e.awal === "") return null;
   const keluar = keluarBulan(divisi, nama, bulan);
-  const sisa = (Number(e.awal)||0) - keluar;
-  return {keluar, sisa, fisik: Number(e.hasil)||0, ok: (Number(e.hasil)||0) === sisa};
+  // Sisa Item = Stok Awal + Barang Masuk − Hasil SO (selisih pemakaian aktual)
+  const sisa = (Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0);
+  return {keluar, sisa, fisik: Number(e.hasil)||0, ok: sisa === keluar};
 }
 function soBalanceText(b, k, alasan){
   if(!b) return '<span class="muted-dash">–</span>';
   return b.ok
-    ? '<span class="rm-badge aman" title="Hasil SO fisik sama dengan Sisa Item (Stok Awal − Pengeluaran)">BALANCE / OK / MANTAP</span>'
-    : `<div><span class="rm-badge terlambat" title="Hasil SO fisik (${fmtNum(b.fisik)}) ≠ Sisa Item (${fmtNum(b.sisa)})">STOK NOT BALANCE</span></div>
+    ? '<span class="rm-badge aman" title="Sisa Item (Awal + Masuk − Hasil SO) sama dengan Pengeluaran yang tercatat">BALANCE / OK / MANTAP</span>'
+    : `<div><span class="rm-badge terlambat" title="Sisa Item (${fmtNum(b.sisa)}) ≠ Pengeluaran (${fmtNum(b.keluar)})">STOK NOT BALANCE</span></div>
        <input type="text" class="so-ket" data-so="${escapeHtml(k)}" data-f="alasan" value="${escapeHtml(alasan||"")}" style="margin-top:6px;width:190px;" placeholder="Isi alasan stok not balance...">`;
 }
 function soPakaiText(e){
@@ -1785,21 +1786,21 @@ function renderOpname(){
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="masuk" value="${escapeHtml(e.masuk)}">${masukNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
       <td data-keluar="${k}">${kel ? fmtNum(kel) : '<span class="muted-dash">–</span>'}${keluarNote}</td>
-      <td data-sisa="${k}">${e.awal !== "" ? `<b>${fmtNum((Number(e.awal)||0) - kel)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>'}</td>
+      <td data-sisa="${k}">${(e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b><div class="sub-text">Awal + Masuk − Hasil SO</div>` : '<span class="muted-dash">–</span>'}</td>
       <td class="so-akhir" data-akhir="${k}">${soPakaiText(e)}</td>
       <td data-balance="${k}">${soBalanceText(b, k, e.alasan)}</td>
       <td><input type="text" class="so-ket" data-so="${k}" data-f="ket" value="${escapeHtml(e.ket)}" placeholder="opsional"></td>
     </tr>`;
   }).join("");
   const itemsTable = items.length
-    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Sisa Item (Awal − Keluar)</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Sisa Item (Awal + Masuk − Hasil SO)</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div>`;
 
   const newRows = soNewRows.map((r,i)=>{
-    const b = (r.awal !== "" && r.hasil !== "") ? (()=>{ const kel = keluarBulan(soDivisi, r.nama, bulan); const sisa = (Number(r.awal)||0) - kel; return {keluar:kel, sisa, fisik:Number(r.hasil)||0, ok:(Number(r.hasil)||0) === sisa}; })() : null;
+    const b = (r.awal !== "" && r.hasil !== "") ? (()=>{ const kel = keluarBulan(soDivisi, r.nama, bulan); const sisa = (Number(r.awal)||0) + (Number(r.masuk)||0) - (Number(r.hasil)||0); return {keluar:kel, sisa, fisik:Number(r.hasil)||0, ok:sisa === kel}; })() : null;
     const checkHtml = !b ? '<span class="muted-dash">–</span>' : (b.ok
       ? '<span class="rm-badge aman">BALANCE / OK</span>'
-      : `<div><span class="rm-badge terlambat" title="Fisik ${fmtNum(b.fisik)} ≠ Sisa ${fmtNum(b.sisa)}">NOT BALANCE</span><div class="sub-text">sisa: ${fmtNum(b.sisa)}</div></div>
+      : `<div><span class="rm-badge terlambat" title="Sisa Item ${fmtNum(b.sisa)} ≠ Pengeluaran ${fmtNum(b.keluar)}">NOT BALANCE</span><div class="sub-text">sisa: ${fmtNum(b.sisa)}</div></div>
          <input type="text" class="so-ket" data-sn="${i}" data-f="alasan" value="${escapeHtml(r.alasan||"")}" placeholder="Alasan not balance..." style="margin-top:4px;width:180px;">`);
     return `<div class="so-new-row">
       <input placeholder="Nama barang" value="${escapeHtml(r.nama)}" data-sn="${i}" data-f="nama">
@@ -1879,7 +1880,7 @@ function bindOpname(){
     const cKel = document.querySelector(`[data-keluar="${CSS.escape(k)}"]`);
     if(cKel) cKel.innerHTML = (kel ? fmtNum(kel) : '<span class="muted-dash">–</span>') + (kel ? '<div class="sub-text">dari tab Pengeluaran</div>' : "");
     const cSisa = document.querySelector(`[data-sisa="${CSS.escape(k)}"]`);
-    if(cSisa) cSisa.innerHTML = e.awal !== "" ? `<b>${fmtNum((Number(e.awal)||0) - kel)}</b><div class="sub-text">Awal − Keluar</div>` : '<span class="muted-dash">–</span>';
+    if(cSisa) cSisa.innerHTML = (e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b><div class="sub-text">Awal + Masuk − Hasil SO</div>` : '<span class="muted-dash">–</span>';
     const cBal = document.querySelector(`[data-balance="${CSS.escape(k)}"]`);
     if(cBal && inp.dataset.f !== "alasan"){
       cBal.innerHTML = soBalanceText(b, escapeHtml(k), e.alasan);
@@ -1899,8 +1900,8 @@ function bindOpname(){
       if(cell){
         const kel = keluarBulan(soDivisi, row.nama, bulan);
         if(row.awal !== "" && row.hasil !== ""){
-          const sisa = (Number(row.awal)||0) - kel, fisik = Number(row.hasil)||0;
-          cell.innerHTML = fisik === sisa
+          const sisa = (Number(row.awal)||0) + (Number(row.masuk)||0) - (Number(row.hasil)||0);
+          cell.innerHTML = sisa === kel
             ? '<span class="rm-badge aman">BALANCE / OK</span>'
             : `<div><span class="rm-badge terlambat">NOT BALANCE</span><div class="sub-text">sisa: ${fmtNum(sisa)}</div></div>
                <input type="text" class="so-ket" data-sn="${el.dataset.sn}" data-f="alasan" value="${escapeHtml(row.alasan||"")}" placeholder="Alasan not balance..." style="margin-top:4px;width:180px;">`;
@@ -1930,7 +1931,7 @@ function bindOpname(){
       if(!r.nama.trim() || r.hasil === "" || r.awal === ""){ alert("Item baru: nama barang, stok awal, dan hasil SO harus diisi."); return; }
       const ex = soRows.find(o=> o.bulan === bulan && itemKey(o.divisi,o.namaBarang,o.satuan) === itemKey(soDivisi, r.nama, r.satuan));
       const kel = keluarBulan(soDivisi, r.nama, bulan);
-      if((Number(r.hasil)||0) !== ((Number(r.awal)||0) - kel) && !(r.alasan||"").trim()){ missingAlasan.push(r.nama.trim()); continue; }
+      if(((Number(r.awal)||0) + (Number(r.masuk)||0) - (Number(r.hasil)||0)) !== kel && !(r.alasan||"").trim()){ missingAlasan.push(r.nama.trim()); continue; }
       recs.push(buildSoRecord(soDivisi, r.nama.trim(), r.satuan, bulan, {awal:r.awal, masuk:r.masuk||"0", hasil:r.hasil, ket:"", alasan:r.alasan||""}, ex ? ex.id : null));
     }
     if(missing.length){ alert("Stok Awal belum diisi untuk:\n- " + missing.join("\n- ") + "\n\nIsi stok awal (hitungan pertama kali) dulu."); return; }
