@@ -1731,7 +1731,6 @@ function renderAnalisa(){
       <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
       <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
     </div>
-    <div class="rm-note"><b>Sumber kebutuhan:</b> <span class="src-tag so">SO</span> = rata-rata <b>Pemakaian</b> per bulan (Stok Awal + Barang Masuk − Hasil SO) yang tercatat di Stock Opname dalam periode, dipakai bila item sudah punya data SO. <span class="src-tag rq">pengajuan</span> = total Qty PO ÷ jumlah bulan periode (min. 2 pengajuan; pengadaan Batal tidak dihitung). <b>Stok sekarang</b> = Hasil SO (stok fisik) terakhir + penerimaan sesudahnya − perkiraan pemakaian.</div>
     ${DIVISI_LIST.map(section).join("")}
   `;
 }
