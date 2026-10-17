@@ -212,6 +212,7 @@
   .login-layer{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
     background:radial-gradient(760px 380px at 8% -60px,var(--glow-blue),transparent 70%),radial-gradient(760px 380px at 95% -60px,var(--glow-red),transparent 70%),var(--paper);
     background-attachment:fixed;animation:loginIn .35s ease;}
+  .login-layer[hidden]{display:none !important;}
   @keyframes loginIn{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
   .login-card{position:relative;width:min(380px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:20px;
     box-shadow:var(--shadow);padding:36px 32px;text-align:center;}
@@ -2679,7 +2680,7 @@ function showLogin(mode){
   pinMode = mode;
   const layer = document.getElementById("loginLayer");
   if(!layer) return;
-  layer.hidden = false;
+  layer.hidden = false; layer.style.display = "flex";
   const set = mode === "set";
   document.getElementById("loginTitle").textContent = set ? "Buat Akun Baru" : "Masuk Aplikasi";
   document.getElementById("loginSub").textContent = set ? "Buat username dan password — jangan lupa disimpan" : "Masukkan username dan password untuk melanjutkan";
@@ -2695,7 +2696,7 @@ function showLogin(mode){
   const hint = document.getElementById("loginHint"); if(hint) hint.textContent = "";
   const lp = document.getElementById("btnLupaPin"); if(lp) lp.hidden = true;
 }
-function hideLogin(){ const l = document.getElementById("loginLayer"); if(l) l.hidden = true; }
+function hideLogin(){ const l = document.getElementById("loginLayer"); if(l){ l.hidden = true; l.style.display = "none"; } }
 function pinConfirm(){
   const err = document.getElementById("loginErr");
   const uEl = document.getElementById("loginUser"), pEl = document.getElementById("loginPass"), p2El = document.getElementById("loginPass2");
