@@ -1350,6 +1350,10 @@ function bindPengadaanForm(){
           let errs = [];
           if(hasProofChanges(st)) errs = (await syncProofs(updated.id, st)).errors;   // foto ikut diunggah
           saveDone(); setView("list"); if(!editingId) revealRecord(updated.id);
+          // reset draft form supaya form permintaan kosong lagi setelah simpan
+          form = {...emptyForm(), id:idFor()};
+          editingId = null;
+          proofState = newProofState([]);
           if(errs.length) alert("Data tersimpan, tetapi ada foto yang gagal:\n"+errs.join("\n"));
         })
         .catch(e=>{ saveFail(); alert("Gagal menyimpan: "+e.message); });
