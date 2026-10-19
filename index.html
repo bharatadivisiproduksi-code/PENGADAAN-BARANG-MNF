@@ -1731,7 +1731,6 @@ function renderAnalisa(){
       <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
       <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
     </div>
-    <div class="rm-note"><b>Sumber kebutuhan:</b> <span class="src-tag so">SO</span> = rata-rata <b>Pemakaian</b> per bulan (Stok Awal + Barang Masuk − Hasil SO) yang tercatat di Stock Opname dalam periode, dipakai bila item sudah punya data SO. <span class="src-tag rq">pengajuan</span> = total Qty PO ÷ jumlah bulan periode (min. 2 pengajuan; pengadaan Batal tidak dihitung). <b>Stok sekarang</b> = Hasil SO (stok fisik) terakhir + penerimaan sesudahnya − perkiraan pemakaian.</div>
     ${DIVISI_LIST.map(section).join("")}
   `;
 }
@@ -1812,8 +1811,8 @@ function soBalance(e, divisi, nama, bulan){
 function soBalanceText(b, k, alasan){
   if(!b) return '<span class="muted-dash">–</span>';
   return b.ok
-    ? '<span class="rm-badge aman" title="Sisa Item (Awal + Masuk − Hasil SO) sama dengan Pengeluaran yang tercatat">BALANCE / OK / MANTAP</span>'
-    : `<div><span class="rm-badge terlambat" title="Sisa Item (${fmtNum(b.sisa)}) ≠ Pengeluaran (${fmtNum(b.keluar)})">STOK NOT BALANCE</span></div>
+    ? '<span class="rm-badge aman" title="Sisa Item (Awal + Masuk − Hasil SO) sama dengan Pengeluaran yang tercatat">BALANCE</span>'
+    : `<div><span class="rm-badge terlambat" title="Sisa Item (${fmtNum(b.sisa)}) ≠ Pengeluaran (${fmtNum(b.keluar)})">STOCK NOT BALANCE</span></div>
        <input type="text" class="so-ket" data-so="${escapeHtml(k)}" data-f="alasan" value="${escapeHtml(alasan||"")}" style="margin-top:6px;width:190px;" placeholder="Isi alasan stok not balance...">`;
 }
 function soPakaiText(e){
@@ -1856,7 +1855,7 @@ function renderOpname(){
     </tr>`;
   }).join("");
   const itemsTable = items.length
-    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Sisa Item (Awal + Masuk − Hasil SO)</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Sisa Item</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div>`;
 
   const newRows = soNewRows.map((r,i)=>{
