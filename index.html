@@ -1731,6 +1731,7 @@ function renderAnalisa(){
       <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
       <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
     </div>
+    <div class="rm-note"><b>Sumber kebutuhan:</b> <span class="src-tag so">SO</span> = rata-rata <b>Pemakaian</b> per bulan (Stok Awal + Barang Masuk − Hasil SO) yang tercatat di Stock Opname dalam periode, dipakai bila item sudah punya data SO. <span class="src-tag rq">pengajuan</span> = total Qty PO ÷ jumlah bulan periode (min. 2 pengajuan; pengadaan Batal tidak dihitung). <b>Stok sekarang</b> = Hasil SO (stok fisik) terakhir + penerimaan sesudahnya − perkiraan pemakaian.</div>
     ${DIVISI_LIST.map(section).join("")}
   `;
 }
@@ -1880,7 +1881,7 @@ function renderOpname(){
       <td>${fmtBulan(o.bulan)}</td><td>${escapeHtml(o.namaBarang)}</td><td>${escapeHtml(o.satuan)}</td>
       <td>${fmtNum(o.stokAwal)}</td><td>${fmtNum(o.barangMasuk)}</td><td>${fmtNum(o.hasilSO)}</td>
       <td>${soPakai(o) < 0 ? `<span class="rm-badge terlambat">${fmtNum(soPakai(o))} · cek</span>` : `<b>${fmtNum(soPakai(o))}</b>`}</td>
-      <td>${escapeHtml(o.alasanNotBalance||"")}${o.alasanNotBalance ? "" : (Number(o.hasilSO) === ((Number(o.stokAwal)||0) - keluarBulan(o.divisi, o.namaBarang, o.bulan)) ? ' <span class="rm-badge aman" title="Hasil SO sama dengan Stok Awal − Pengeluaran">OK</span>' : ' <span class="rm-badge terlambat" title="Hasil SO tidak sama dengan Stok Awal − Pengeluaran dan belum ada alasan">NOT BALANCE</span>')}</td>
+      <td>${escapeHtml(o.alasanNotBalance||"")}${o.alasanNotBalance ? "" : ( ((Number(o.stokAwal)||0) + (Number(o.barangMasuk)||0) - (Number(o.hasilSO)||0)) === keluarBulan(o.divisi, o.namaBarang, o.bulan) ? ' <span class="rm-badge aman" title="Sisa Item (Awal + Masuk − Hasil SO) sama dengan Pengeluaran yang tercatat">OK</span>' : ' <span class="rm-badge terlambat" title="Sisa Item (Awal + Masuk − Hasil SO) tidak sama dengan Pengeluaran dan belum ada alasan">NOT BALANCE</span>')}</td>
       <td><button class="so-del" data-so-hist="${escapeHtml(o.id)}" title="Riwayat perubahan">🕘 ${o.history.length}</button>
           <button class="so-del" data-so-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`).join("");
   const histTable = hist.length
