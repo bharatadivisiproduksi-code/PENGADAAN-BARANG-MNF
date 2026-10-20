@@ -1925,7 +1925,7 @@ function renderOpname(){
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="masuk" value="${escapeHtml(e.masuk)}">${masukNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
       <td data-keluar="${k}">${kel ? fmtNum(kel) : '<span class="muted-dash">–</span>'}${keluarNote}</td>
-      <td data-kini="${k}">${(e.awal !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b> <span class="sub-text">read-only</span>` : '<span class="muted-dash">–</span>'}</td>
+      <td data-kini="${k}"><b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b> <span class="sub-text">read-only</span></td>
       <td data-sisa="${k}">${(e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b><div class="sub-text">Awal + Masuk − Hasil SO</div>` : '<span class="muted-dash">–</span>'}</td>
       <td class="so-akhir" data-akhir="${k}">${soPakaiText(e)}</td>
       <td data-balance="${k}">${soBalanceText(b, k, e.alasan)}</td>
@@ -2020,7 +2020,7 @@ function bindOpname(){
     const cKel = document.querySelector(`[data-keluar="${CSS.escape(k)}"]`);
     if(cKel) cKel.innerHTML = (kel ? fmtNum(kel) : '<span class="muted-dash">–</span>') + (kel ? '<div class="sub-text">dari tab Pengeluaran</div>' : "");
     const cKini = document.querySelector(`[data-kini="${CSS.escape(k)}"]`);
-    if(cKini) cKini.innerHTML = (e.awal !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b> <span class="sub-text">read-only</span>` : '<span class="muted-dash">–</span>';
+    if(cKini) cKini.innerHTML = `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b> <span class="sub-text">read-only</span>`;
     const cSisa = document.querySelector(`[data-sisa="${CSS.escape(k)}"]`);
     if(cSisa) cSisa.innerHTML = (e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b><div class="sub-text">Awal + Masuk − Hasil SO</div>` : '<span class="muted-dash">–</span>';
     const cBal = document.querySelector(`[data-balance="${CSS.escape(k)}"]`);
