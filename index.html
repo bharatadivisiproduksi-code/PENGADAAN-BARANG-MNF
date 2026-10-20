@@ -1924,16 +1924,16 @@ function renderOpname(){
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="awal" value="${escapeHtml(e.awal)}">${awalNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="masuk" value="${escapeHtml(e.masuk)}">${masukNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
-      <td data-keluar="${k}">${kel ? fmtNum(kel) : '<span class="muted-dash">–</span>'}${keluarNote}</td>
-      <td data-kini="${k}"><b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b> <span class="sub-text">read-only</span></td>
-      <td data-sisa="${k}">${(e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b><div class="sub-text">Awal + Masuk − Hasil SO</div>` : '<span class="muted-dash">–</span>'}</td>
+      <td data-keluar="${k}">${kel ? fmtNum(kel) : '<span class="muted-dash">–</span>'}</td>
+      <td data-kini="${k}"><b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b></td>
+      <td data-sisa="${k}">${(e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b>` : '<span class="muted-dash">–</span>'}</td>
       <td class="so-akhir" data-akhir="${k}">${soPakaiText(e)}</td>
       <td data-balance="${k}">${soBalanceText(b, k, e.alasan)}</td>
       <td><input type="text" class="so-ket" data-so="${k}" data-f="ket" value="${escapeHtml(e.ket)}" placeholder="opsional"></td>
     </tr>`;
   }).join("");
   const itemsTable = items.length
-    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Stok Saat Ini (Awal + Masuk − Keluar)</th><th>Sisa Item (Awal + Masuk − Hasil SO)</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Stok Saat Ini</th><th>Sisa Item</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div>`;
 
   const newRows = soNewRows.map((r,i)=>{
@@ -2018,11 +2018,11 @@ function bindOpname(){
     const b = soBalance(e, it.divisi, it.nama, bulan);
     const kel = keluarBulan(it.divisi, it.nama, bulan);
     const cKel = document.querySelector(`[data-keluar="${CSS.escape(k)}"]`);
-    if(cKel) cKel.innerHTML = (kel ? fmtNum(kel) : '<span class="muted-dash">–</span>') + (kel ? '<div class="sub-text">dari tab Pengeluaran</div>' : "");
+    if(cKel) cKel.innerHTML = kel ? fmtNum(kel) : '<span class="muted-dash">–</span>';
     const cKini = document.querySelector(`[data-kini="${CSS.escape(k)}"]`);
-    if(cKini) cKini.innerHTML = `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b> <span class="sub-text">read-only</span>`;
+    if(cKini) cKini.innerHTML = `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b>`;
     const cSisa = document.querySelector(`[data-sisa="${CSS.escape(k)}"]`);
-    if(cSisa) cSisa.innerHTML = (e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b><div class="sub-text">Awal + Masuk − Hasil SO</div>` : '<span class="muted-dash">–</span>';
+    if(cSisa) cSisa.innerHTML = (e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b>` : '<span class="muted-dash">–</span>';
     const cBal = document.querySelector(`[data-balance="${CSS.escape(k)}"]`);
     if(cBal && inp.dataset.f !== "alasan"){
       cBal.innerHTML = soBalanceText(b, escapeHtml(k), e.alasan);
