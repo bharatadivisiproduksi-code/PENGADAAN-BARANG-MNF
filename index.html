@@ -1003,6 +1003,7 @@ function renderDashboard(){
       </div>
     </div>
     ${renderBelumSelesaiPanel()}
+    ${renderStokKiniPanel()}
     ${renderStockPanel()}
     ${renderRemindPanel()}
   `;
@@ -1452,6 +1453,18 @@ function loadOut(){
   })); }catch(e){ outRows = []; }
 }
 // Total pengeluaran 1 item pada 1 bulan (YYYY-MM); nama dibandingkan tanpa peduli besar-kecil huruf
+function keluarBulanDari(divisi, nama, dariBulan){
+  // total pengeluaran tercatat dari bulan SO terakhir sampai sekarang
+  const n = String(nama||"").trim().toLowerCase();
+  const d = String(divisi||"").trim().toLowerCase();
+  return outRows.reduce((t,o)=>{
+    const od = String(o.divisi||"").trim().toLowerCase();
+    const cocokDivisi = od === d || od === "" || d === "";
+    const bln = String(o.tanggal).slice(0,7);
+    return cocokDivisi && String(o.namaBarang).trim().toLowerCase() === n && bln >= dariBulan
+      ? t + (Number(o.qty)||0) : t;
+  }, 0);
+}
 function keluarBulan(divisi, nama, bulan){
   const n = String(nama||"").trim().toLowerCase();
   const d = String(divisi||"").trim().toLowerCase();
@@ -1669,6 +1682,52 @@ function renderRemindPanel(){
       <div class="rm-note">Memakai stok & pemakaian dari Stock Opname (SO) bila ada, kalau belum memakai pola pengajuan. Rata-rata kebutuhan: ${periodTxt}. Diingatkan ${remindLead} hari sebelum perkiraan habis.</div>
       ${body}
       ${list.length > 8 ? `<div class="rm-more">+ ${list.length - 8} item lainnya di halaman Analisa</div>` : ""}
+    </div>`;
+}
+
+function stokKiniItems(){
+  // Stok saat ini (read-only) = Stok Awal + Barang Masuk - Barang Keluar (pengeluaran tercatat)
+  // Mengambil SO TERAKHIR tiap item sebagai basis stok awal & barang masuk.
+  const perItem = new Map();
+  soRows.forEach(o=>{
+    const nama = String(o.namaBarang||"").trim();
+    if(!nama) return;
+    const key = (o.divisi||"").toLowerCase() + "|" + nama.toLowerCase();
+    const cur = perItem.get(key);
+    if(!cur || String(o.bulan) > String(cur.bulan)) perItem.set(key, o);
+  });
+  const list = [];
+  perItem.forEach(o=>{
+    const kel = keluarBulanDari(o.divisi, o.namaBarang, o.bulan);
+    const awal = Number(o.stokAwal)||0;
+    const masuk = Number(o.barangMasuk)||0;
+    list.push({divisi:o.divisi||"", nama:String(o.namaBarang), satuan:o.satuan||"", bulan:o.bulan,
+               awal, masuk, keluar:kel, stok: awal + masuk - kel});
+  });
+  list.sort((a,b)=> a.divisi.localeCompare(b.divisi) || a.nama.localeCompare(b.nama));
+  return list;
+}
+
+function renderStokKiniPanel(){
+  const list = stokKiniItems();
+  const body = list.length === 0
+    ? `<div class="empty-state">Belum ada data Stock Opname. Stok saat ini otomatis muncul setelah SO diisi.</div>`
+    : `<table class="stk-kini-table"><thead><tr><th>Barang</th><th>Divisi</th><th>Satuan</th><th>Stok Awal</th><th>Masuk</th><th>Keluar</th><th class="stk-now">Stok Saat Ini</th></tr></thead><tbody>
+        ${list.map(i=>`<tr>
+          <td>${escapeHtml(i.nama)}</td>
+          <td>${escapeHtml(i.divisi)}</td>
+          <td>${escapeHtml(i.satuan)}</td>
+          <td>${fmtNum(i.awal)}</td>
+          <td>+${fmtNum(i.masuk)}</td>
+          <td>-${fmtNum(i.keluar)}</td>
+          <td class="stk-now"><b>${fmtNum(i.stok)}</b> ${escapeHtml(i.satuan)}</td>
+        </tr>`).join("")}
+      </tbody></table>`;
+  return `
+    <div class="panel">
+      <div class="remind-head"><h2>Stok Saat Ini <span class="count-chip">${list.length}</span></h2></div>
+      <div class="sub-text">Perhitungan otomatis: Stok Awal + Barang Masuk − Barang Keluar (dari SO terakhir & pengeluaran tercatat). Angka hanya tampilan, tidak bisa diubah.</div>
+      ${body}
     </div>`;
 }
 
