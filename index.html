@@ -1926,14 +1926,13 @@ function renderOpname(){
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
       <td data-keluar="${k}">${kel ? fmtNum(kel) : '<span class="muted-dash">–</span>'}</td>
       <td data-kini="${k}"><b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b></td>
-      <td data-sisa="${k}">${(e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b>` : '<span class="muted-dash">–</span>'}</td>
-      <td class="so-akhir" data-akhir="${k}">${soPakaiText(e)}</td>
+      <td data-sisa="${k}">${soPakaiText(e)}</td>
       <td data-balance="${k}">${soBalanceText(b, k, e.alasan)}</td>
       <td><input type="text" class="so-ket" data-so="${k}" data-f="ket" value="${escapeHtml(e.ket)}" placeholder="opsional"></td>
     </tr>`;
   }).join("");
   const itemsTable = items.length
-    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Stok Saat Ini</th><th>Sisa Item</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Stok Saat Ini</th><th>Sisa Item</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div>`;
 
   const newRows = soNewRows.map((r,i)=>{
@@ -1962,14 +1961,14 @@ function renderOpname(){
       <td><button class="so-del" data-so-hist="${escapeHtml(o.id)}" title="Riwayat perubahan">🕘 ${o.history.length}</button>
           <button class="so-del" data-so-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`).join("");
   const histTable = hist.length
-    ? `<table><thead><tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th>Alasan / Balance</th><th></th></tr></thead><tbody>${histRows}</tbody></table>`
+    ? `<table><thead><tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Sisa Item</th><th>Alasan / Balance</th><th></th></tr></thead><tbody>${histRows}</tbody></table>`
     : `<div class="empty-state">Belum ada data Stock Opname untuk ${escapeHtml(soDivisi)}.</div>`;
 
   return `
     <div class="page-header">
       <div>
         <h1>Stock Opname</h1>
-        <p>Catat hasil hitung fisik (Hasil SO) tiap barang per bulan. Pemakaian = Stok Awal + Barang Masuk − Hasil SO, dan Hasil SO menjadi Stok Awal bulan berikutnya.</p>
+        <p>Catat hasil hitung fisik (Hasil SO) tiap barang per bulan. Sisa Item = Stok Awal + Barang Masuk − Hasil SO, dan Hasil SO menjadi Stok Awal bulan berikutnya.</p>
       </div>
       <div class="header-actions">${themeToggleHTML()}</div>
     </div>
@@ -2013,8 +2012,6 @@ function bindOpname(){
     const it = byKey.get(k);
     if(!it) return;
     const e = soEff(it, bulan);
-    const cell = document.querySelector(`[data-akhir="${CSS.escape(k)}"]`);
-    if(cell) cell.innerHTML = soPakaiText(e);
     const b = soBalance(e, it.divisi, it.nama, bulan);
     const kel = keluarBulan(it.divisi, it.nama, bulan);
     const cKel = document.querySelector(`[data-keluar="${CSS.escape(k)}"]`);
@@ -2022,7 +2019,7 @@ function bindOpname(){
     const cKini = document.querySelector(`[data-kini="${CSS.escape(k)}"]`);
     if(cKini) cKini.innerHTML = `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - kel)}</b>`;
     const cSisa = document.querySelector(`[data-sisa="${CSS.escape(k)}"]`);
-    if(cSisa) cSisa.innerHTML = (e.awal !== "" && e.hasil !== "") ? `<b>${fmtNum((Number(e.awal)||0) + (Number(e.masuk)||0) - (Number(e.hasil)||0))}</b>` : '<span class="muted-dash">–</span>';
+    if(cSisa) cSisa.innerHTML = soPakaiText(e);
     const cBal = document.querySelector(`[data-balance="${CSS.escape(k)}"]`);
     if(cBal && inp.dataset.f !== "alasan"){
       cBal.innerHTML = soBalanceText(b, escapeHtml(k), e.alasan);
