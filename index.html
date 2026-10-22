@@ -1807,7 +1807,6 @@ function renderAnalisa(){
       <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
       <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
     </div>
-    <div class="rm-note"><b>Sumber kebutuhan:</b> <span class="src-tag so">SO</span> = rata-rata <b>Pemakaian</b> per bulan (Stok Awal + Barang Masuk − Hasil SO) yang tercatat di Stock Opname dalam periode, dipakai bila item sudah punya data SO. <span class="src-tag rq">pengajuan</span> = total Qty PO ÷ jumlah bulan periode (min. 2 pengajuan; pengadaan Batal tidak dihitung). <b>Stok sekarang</b> = Hasil SO (stok fisik) terakhir + penerimaan sesudahnya − perkiraan pemakaian.</div>
     ${DIVISI_LIST.map(section).join("")}
   `;
 }
@@ -1968,7 +1967,6 @@ function renderOpname(){
     <div class="page-header">
       <div>
         <h1>Stock Opname</h1>
-        <p>Catat hasil hitung fisik (Hasil SO) tiap barang per bulan. Sisa Item = Stok Awal + Barang Masuk − Hasil SO, dan Hasil SO menjadi Stok Awal bulan berikutnya.</p>
       </div>
       <div class="header-actions">${themeToggleHTML()}</div>
     </div>
@@ -1985,7 +1983,6 @@ function renderOpname(){
     </div>
     <div class="form-actions" style="margin-top:18px;">
       <button type="button" class="btn-accent" id="soSave">Simpan SO</button>
-      <span class="so-hint">Hanya baris yang Hasil SO-nya diisi yang disimpan. Isi 0 bila stok fisiknya habis.</span>
     </div>
     <h2 class="sub-title">Riwayat SO — ${escapeHtml(soDivisi)}</h2>
     <div class="table-wrap">${histTable}</div>
@@ -2213,9 +2210,7 @@ function renderTerima(){
   return `
     <div class="page-header">
       <div>
-        <h1>Pengadaan</h1>
-        <p>Ajukan permintaan barang, catat penerimaan, dan pengeluaran harian dalam satu tempat.</p>
-      </div>
+        <h1>Pengadaan</h1>      </div>
       <div class="header-actions">${themeToggleHTML()}</div>
     </div>
     <div class="tab-row">
@@ -2262,7 +2257,6 @@ function renderPengeluaran(){
       <div class="form-actions">
         <button type="submit" class="btn-accent">Simpan Pengeluaran</button>
         <button type="button" class="btn-plain" id="kReset">Reset</button>
-        <span class="so-hint">Pengeluaran disimpan di perangkat ini dan dipakai untuk cek balance di Stock Opname.</span>
       </div>
     </form>
     <h2 class="sub-title">Pengeluaran Terakhir</h2>
