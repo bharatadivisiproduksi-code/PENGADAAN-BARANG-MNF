@@ -506,7 +506,7 @@ const STATUS_LIST = ["Pengajuan","Disetujui","Diterima","Selesai","Batal"];
 const STATUS_COLORS = {
   "Pengajuan":"#7A8699","Disetujui":"#2F6FE4","Diterima":"#E09A1A","Selesai":"#1FA36B","Batal":"#D7263D"
 };
-const DIVISI_LIST = ["GA","Purchasing"];
+const DIVISI_LIST = ["GA"];
 const SATUAN_LIST = ["Pcs","Unit","Box","Botol","Kg","Liter","Meter","Set","Dus"];
 const DEPT_LIST = ["Produksi"];
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -767,7 +767,7 @@ function loadRecords(){
   loadOut();
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    records = raw ? JSON.parse(raw) : [];
+    records = raw ? JSON.parse(raw).map(r=>({...r, divisi:"GA"})) : [];
   }catch(e){
     records = [];
   }
@@ -797,6 +797,7 @@ function normDate(v){
 }
 function normRecord(r){
   const o = {...r};
+  o.divisi = "GA";
   DATE_FIELDS.forEach(k=>{ if(o[k]) o[k] = normDate(o[k]); });
   return o;
 }
@@ -872,12 +873,11 @@ function countKurang(){
 function computeStats(){
   const total = records.length;
   const ga = records.filter(r=>r.divisi==="GA").length;
-  const purchasing = records.filter(r=>r.divisi==="Purchasing").length;
   const totalNilai = records.filter(r=>r.status!=="Batal").reduce((s,r)=> s + (Number(r.qty)||0)*(Number(r.estimasiHarga)||0), 0);
   const statusCounts = {};
   STATUS_LIST.forEach(s=>statusCounts[s]=0);
   records.forEach(r=>{ if(statusCounts[r.status]!==undefined) statusCounts[r.status]++; });
-  return {total,ga,purchasing,totalNilai,statusCounts};
+  return {total,ga,totalNilai,statusCounts};
 }
 function computeTotalEstimasiForBulan(bulan){
   // Pengadaan berstatus "Batal" tidak dihitung ke total estimasi
@@ -991,7 +991,6 @@ function renderDashboard(){
     <div class="stat-row">
       <div class="stat-card"><div class="icon">▣</div><div class="label">Total Pengadaan</div><div class="value">${stats.total}</div></div>
       <div class="stat-card"><div class="icon">◧</div><div class="label">Divisi GA</div><div class="value">${stats.ga}</div></div>
-      <div class="stat-card"><div class="icon">◨</div><div class="label">Divisi Purchasing</div><div class="value">${stats.purchasing}</div></div>
       <div class="stat-card stat-link" id="cardKurang" role="button" tabindex="0" title="Klik untuk melihat daftarnya"><div class="icon">⚠</div><div class="label">Penerimaan Kurang</div><div class="value">${countKurang()}</div></div>
       <div class="stat-card">
         <div class="icon">$</div>
@@ -1421,7 +1420,7 @@ function parseHist(h){
   try{ const x = JSON.parse(h || "[]"); return Array.isArray(x) ? x : []; }catch(e){ return []; }
 }
 function normSo(o){
-  return {id:String(o.id), bulan:String(o.bulan||"").slice(0,7), divisi:o.divisi||"", namaBarang:String(o.namaBarang||""), satuan:o.satuan||"",
+  return {id:String(o.id), bulan:String(o.bulan||"").slice(0,7), divisi:"GA", namaBarang:String(o.namaBarang||""), satuan:o.satuan||"",
           stokAwal:Number(o.stokAwal)||0, barangMasuk:Number(o.barangMasuk)||0, hasilSO:Number(o.hasilSO)||0,
           keterangan:o.keterangan||"", alasanNotBalance:o.alasanNotBalance||"", history:parseHist(o.history), updatedAt:o.updatedAt||""};
 }
@@ -1447,7 +1446,7 @@ let outRows = [];   // {id, tanggal, divisi, namaBarang, satuan, qty, keterangan
 function persistOut(){ try{ localStorage.setItem(OUT_KEY, JSON.stringify(outRows)); }catch(e){} }
 function loadOut(){
   try{ outRows = JSON.parse(localStorage.getItem(OUT_KEY) || "[]").map(o=>({
-    id:String(o.id||idFor()), tanggal:String(o.tanggal||"").slice(0,10), divisi:o.divisi||"",
+    id:String(o.id||idFor()), tanggal:String(o.tanggal||"").slice(0,10), divisi:"GA",
     namaBarang:String(o.namaBarang||""), satuan:o.satuan||"", qty:Number(o.qty)||0, keterangan:o.keterangan||""
   })); }catch(e){ outRows = []; }
 }
@@ -1795,7 +1794,7 @@ function renderAnalisa(){
     <div class="page-header">
       <div>
         <h1>Analisa Kebutuhan</h1>
-        <p>Kebutuhan tiap item per bulan, dipisah GA dan Purchasing. ${nRemind ? `<b class="rm-inline">${nRemind} item perlu diajukan ulang.</b>` : "Belum ada item yang perlu diajukan ulang."}</p>
+        <p>Kebutuhan tiap item per bulan, khusus divisi GA. ${nRemind ? `<b class="rm-inline">${nRemind} item perlu diajukan ulang.</b>` : "Belum ada item yang perlu diajukan ulang."}</p>
       </div>
       <div class="header-actions">
         ${themeToggleHTML()}
