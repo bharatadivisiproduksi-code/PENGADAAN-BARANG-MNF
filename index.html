@@ -2198,6 +2198,10 @@ function renderTerima(){
             <span class="terima-note"><button type="button" class="link-btn" id="tFill">Sama dengan Qty PO</button><b id="tHint"></b></span></label>
           <label class="field"><span>Tanggal Diterima <span class="req">*</span></span><input type="date" name="tglDiterima" required></label>
         </div>
+        <label class="terima-check" style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer">
+          <input type="checkbox" name="sudahDiterima" style="width:18px;height:18px;accent-color:#1FA36B">
+          <span><b>Sudah diterima</b> <span class="sub-text">— centang agar status di Laporan Permintaan otomatis menjadi "Diterima"</span></span>
+        </label>
       </div>
       <div class="form-actions">
         <button type="submit" class="btn-accent">Simpan Penerimaan</button>
@@ -2357,7 +2361,7 @@ function bindTerima(){
   const el = n => f.elements[n];
   const msg = document.getElementById("terimaMsg"), hint = document.getElementById("tHint"), fill = document.getElementById("tFill");
   const submitBtn = f.querySelector('button[type=submit]');
-  const setManual = on => { el("qtyDiterima").disabled = !on; el("tglDiterima").disabled = !on; fill.disabled = !on; submitBtn.disabled = !on; };
+  const setManual = on => { el("qtyDiterima").disabled = !on; el("tglDiterima").disabled = !on; el("sudahDiterima").disabled = !on; fill.disabled = !on; submitBtn.disabled = !on; };
   const updHint = ()=>{
     hint.className = "";
     if(!terimaSelId || el("qtyDiterima").value === ""){ hint.textContent = ""; return; }
@@ -2375,7 +2379,7 @@ function bindTerima(){
     terimaSelId = r ? r.id : null;
     if(!r){
       el("tNama").value = el("tQty").value = el("tSatuan").value = "";
-      el("qtyDiterima").value = ""; el("tglDiterima").value = "";
+      el("qtyDiterima").value = ""; el("tglDiterima").value = ""; el("sudahDiterima").checked = false;
       msg.textContent = el("terimaNo").value.trim() ? "No. Pengadaan tidak ditemukan." : "";
       setManual(false); updHint();
       return;
@@ -2384,6 +2388,7 @@ function bindTerima(){
     const had = terimaInfo(r).kind !== "belum";
     el("qtyDiterima").value = had ? r.qtyDiterima : "";
     el("tglDiterima").value = r.tglDiterima || todayISO();
+    el("sudahDiterima").checked = (r.status === "Diterima" || r.status === "Selesai");
     msg.textContent = had
       ? `Sudah tercatat diterima ${r.qtyDiterima} ${r.satuan}${r.tglDiterima ? " pada "+formatTgl(r.tglDiterima) : ""}. Isi total yang sudah diterima; menyimpan akan memperbarui data ini.`
       : "";
@@ -2401,6 +2406,11 @@ function bindTerima(){
     const q = el("qtyDiterima").value, tgl = el("tglDiterima").value;
     if(q === "" || !tgl) return;
     const updated = {...r, qtyDiterima: Math.max(0, Number(q)||0), tglDiterima: tgl};
+    // Ceklis "Sudah diterima" -> status di Laporan Permintaan ikut berubah otomatis.
+    // (status "Selesai" / "Batal" tidak diturunkan/diubah)
+    const cek = el("sudahDiterima").checked;
+    if(cek && r.status !== "Selesai" && r.status !== "Batal") updated.status = "Diterima";
+    else if(!cek && r.status === "Diterima") updated.status = "Disetujui";
     terimaSelId = null;
     saveEditOptimistic(updated, null).catch(err=>alert("Gagal menyimpan: "+err.message));   // halaman ter-reset otomatis
   };
