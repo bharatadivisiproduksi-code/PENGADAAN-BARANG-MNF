@@ -2200,7 +2200,7 @@ function renderTerima(){
         </div>
         <label class="terima-check" style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer">
           <input type="checkbox" name="sudahDiterima" style="width:18px;height:18px;accent-color:#1FA36B">
-          <span><b>Sudah diterima</b> <span class="sub-text">— centang agar status di Laporan Permintaan otomatis menjadi "Diterima"</span></span>
+          <span><b>Sudah diterima</b> <span class="sub-text">— centang agar status di Laporan Permintaan otomatis menjadi "Selesai"</span></span>
         </label>
       </div>
       <div class="form-actions">
@@ -2388,7 +2388,7 @@ function bindTerima(){
     const had = terimaInfo(r).kind !== "belum";
     el("qtyDiterima").value = had ? r.qtyDiterima : "";
     el("tglDiterima").value = r.tglDiterima || todayISO();
-    el("sudahDiterima").checked = (r.status === "Diterima" || r.status === "Selesai");
+    el("sudahDiterima").checked = (r.status === "Selesai" || r.status === "Diterima");
     msg.textContent = had
       ? `Sudah tercatat diterima ${r.qtyDiterima} ${r.satuan}${r.tglDiterima ? " pada "+formatTgl(r.tglDiterima) : ""}. Isi total yang sudah diterima; menyimpan akan memperbarui data ini.`
       : "";
@@ -2406,11 +2406,11 @@ function bindTerima(){
     const q = el("qtyDiterima").value, tgl = el("tglDiterima").value;
     if(q === "" || !tgl) return;
     const updated = {...r, qtyDiterima: Math.max(0, Number(q)||0), tglDiterima: tgl};
-    // Ceklis "Sudah diterima" -> status di Laporan Permintaan ikut berubah otomatis.
-    // (status "Selesai" / "Batal" tidak diturunkan/diubah)
+    // Ceklis "Sudah diterima" -> status di Laporan Permintaan otomatis menjadi "Selesai".
+    // (status "Batal" tidak diubah)
     const cek = el("sudahDiterima").checked;
-    if(cek && r.status !== "Selesai" && r.status !== "Batal") updated.status = "Diterima";
-    else if(!cek && r.status === "Diterima") updated.status = "Disetujui";
+    if(cek && r.status !== "Batal") updated.status = "Selesai";
+    else if(!cek && (r.status === "Selesai" || r.status === "Diterima")) updated.status = "Disetujui";
     terimaSelId = null;
     saveEditOptimistic(updated, null).catch(err=>alert("Gagal menyimpan: "+err.message));   // halaman ter-reset otomatis
   };
