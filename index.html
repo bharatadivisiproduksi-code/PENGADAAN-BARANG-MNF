@@ -157,6 +157,14 @@
   tr.row-flash td{animation:rowFlash 1.6s ease;}
   @keyframes rowFlash{from{background:rgba(217,138,43,.38);}to{background:transparent;}}
   .load-more{padding:18px;text-align:center;color:var(--muted);font-size:13px;}
+  .riw-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;}
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 2px;font-size:13px;color:var(--muted);}
+  .pager .pg-nums{display:flex;gap:4px;flex-wrap:wrap;}
+  .pg-btn{min-width:34px;height:34px;padding:0 10px;background:var(--panel);border:1px solid var(--line);color:var(--ink);cursor:pointer;border-radius:8px;font-size:13px;}
+  .pg-btn:hover:not([disabled]){border-color:var(--blue);}
+  .pg-btn[disabled]{opacity:.4;cursor:default;}
+  .pg-btn.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;}
+  .pg-gap{align-self:center;padding:0 4px;}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .save-layer{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity .25s ease;}
@@ -921,6 +929,7 @@ function setView(v){
   if(v !== "form") proofState = null;
   if(v === "terima" && view !== "terima") terimaSelId = null;
   if(v === "list" && view !== "list") visibleCount = PAGE_SIZE;
+  if(v === "analisa" && view !== "analisa") analisaShow = {};
   view = v;
   editingId = null;
   document.querySelectorAll(".nav button").forEach(b=>{
@@ -961,6 +970,7 @@ function render(){
     b.classList.toggle("active", b.dataset.view===view);
   });
   attachHandlers();
+  bindRiw();
   updateNavBadge();
   if(pendingScrollY){
     const y = pendingScrollY; pendingScrollY = 0;
@@ -1765,13 +1775,14 @@ function renderAnalisa(){
   const nRemind = items.filter(i=>i.status==="terlambat"||i.status==="segera").length;
 
   const section = (div)=>{
+    const shown = analisaShow[div] || PAGE_SIZE;
     const all = items.filter(i=>i.divisi === div);
     const list = all.filter(i=> !q || i.nama.toLowerCase().includes(q)).sort((a,b)=> b.avg - a.avg);
     const maxAvg = Math.max(0.0001, ...list.map(i=>i.avg));
     const body = list.length === 0
       ? `<div class="empty-state">${all.length ? "Tidak ada item yang cocok dengan pencarian." : "Belum ada data untuk divisi ini."}</div>`
       : `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Jml Pengajuan</th><th>Total Diminta</th><th>Kebutuhan / Bulan</th><th>Stok Sekarang</th><th>Pengajuan Terakhir</th><th>Perkiraan Habis</th><th>Status</th><th></th></tr></thead><tbody>
-        ${list.map(i=>`<tr>
+        ${list.slice(0, shown).map(i=>`<tr>
           <td>${escapeHtml(i.nama)}${i.anomaly ? ' <span class="rm-badge segera" title="Ada SO yang Pemakaiannya minus: Hasil SO (fisik) lebih besar dari Stok Awal + Barang Masuk. Cek barang masuk yang belum tercatat, atau hitungannya.">cek SO</span>' : ""}</td>
           <td>${escapeHtml(i.satuan)}</td>
           <td>${i.count}×</td>
@@ -1787,8 +1798,10 @@ function renderAnalisa(){
             return ""; })()}</td>
         </tr>`).join("")}
       </tbody></table>`;
-    return `<h2 class="sub-title">${escapeHtml(div)} <span class="count-chip">${all.length} item</span></h2><div class="table-wrap">${body}</div>`;
+    const more = list.length > shown ? `<div class="load-more" data-aload="${escapeHtml(div)}">Gulir ke bawah untuk memuat item berikutnya</div>` : "";
+    return `<h2 class="sub-title">${escapeHtml(div)} <span class="count-chip">${all.length} item</span></h2><div class="table-wrap">${body}</div>${more}`;
   };
+  analisaSectionFn = section;
 
   return `
     <div class="page-header">
@@ -1806,17 +1819,47 @@ function renderAnalisa(){
       <select class="filter-select" id="analisaPeriod" title="Periode analisa">${periodOpts}</select>
       <select class="filter-select" id="analisaLead" title="Batas pengingat">${leadOpts}</select>
     </div>
-    ${DIVISI_LIST.map(section).join("")}
+    ${DIVISI_LIST.map(d=>`<div data-asec="${escapeHtml(d)}">${section(d)}</div>`).join("")}
   `;
+}
+
+let analisaShow = {};        // divisi -> jumlah item yang sudah ditampilkan (awal 10, +10 tiap scroll)
+let analisaSectionFn = null;
+let analisaObserver = null, analisaLoading = false;
+function setupAnalisaMore(){
+  if(analisaObserver){ analisaObserver.disconnect(); analisaObserver = null; }
+  const els = document.querySelectorAll("[data-aload]");
+  if(!els.length || typeof IntersectionObserver === "undefined") return;
+  analisaObserver = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting) loadMoreAnalisa(e.target.dataset.aload); });
+  }, {rootMargin:"0px 0px 60px 0px"});
+  els.forEach(el=> analisaObserver.observe(el));
+}
+function loadMoreAnalisa(div){
+  if(analisaLoading || view !== "analisa" || !analisaSectionFn) return;
+  analisaLoading = true;
+  const el = document.querySelector(`[data-aload="${CSS.escape(div)}"]`);
+  if(el) el.innerHTML = '<span class="spinner"></span>Memuat data...';
+  setTimeout(()=>{
+    analisaLoading = false;
+    if(view !== "analisa" || !analisaSectionFn) return;
+    analisaShow[div] = (analisaShow[div] || PAGE_SIZE) + PAGE_SIZE;
+    const wrap = document.querySelector(`[data-asec="${CSS.escape(div)}"]`);
+    if(!wrap) return;
+    wrap.innerHTML = analisaSectionFn(div);      // hanya bagian divisi itu yang diperbarui
+    bindAjukan();
+    setupAnalisaMore();
+  }, 500);
 }
 
 function bindAnalisa(){
   const per = document.getElementById("analisaPeriod"), lead = document.getElementById("analisaLead");
-  if(per) per.onchange = (e)=>{ analysisPeriod = Number(e.target.value); render(); };
-  if(lead) lead.onchange = (e)=>{ remindLead = Number(e.target.value); render(); };
+  if(per) per.onchange = (e)=>{ analysisPeriod = Number(e.target.value); analisaShow = {}; render(); };
+  if(lead) lead.onchange = (e)=>{ remindLead = Number(e.target.value); analisaShow = {}; render(); };
   const sb = document.getElementById("analisaSearch");
   if(sb) sb.oninput = (e)=>{
     analisaSearch = e.target.value;
+    analisaShow = {};
     const pos = e.target.selectionStart;
     render();
     const el = document.getElementById("analisaSearch");
@@ -1825,6 +1868,7 @@ function bindAnalisa(){
   const ex = document.getElementById("btnExportAnalisa");
   if(ex) ex.onclick = exportAnalisa;
   bindAjukan();
+  setupAnalisaMore();
 }
 
 function exportAnalisa(){
@@ -1905,7 +1949,7 @@ function renderOpname(){
   const divOpts = DIVISI_LIST.map(d=>`<option ${soDivisi===d?"selected":""}>${d}</option>`).join("");
   const satOpts = sel => SATUAN_LIST.map(x=>`<option ${sel===x?"selected":""}>${x}</option>`).join("");
 
-  const rows = items.map(i=>{
+  const itemRow = (i)=>{
     const e = soEff(i, bulan), k = escapeHtml(i.key);
     const b = soBalance(e, i.divisi, i.nama, bulan);
     const awalNote = e.prev
@@ -1928,10 +1972,15 @@ function renderOpname(){
       <td data-balance="${k}">${soBalanceText(b, k, e.alasan)}</td>
       <td><input type="text" class="so-ket" data-so="${k}" data-f="ket" value="${escapeHtml(e.ket)}" placeholder="opsional"></td>
     </tr>`;
-  }).join("");
+  };
+  riwCfg.soItems = {
+    full: true, rows: ()=> items, text: i=> i.nama, ph: "Cari nama item...",
+    head: '<tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Stok Saat Ini</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr>',
+    row: itemRow, empty: ""
+  };
   const itemsTable = items.length
-    ? `<table><thead><tr><th>Nama Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Stok Fisik)</th><th>Pengeluaran</th><th>Stok Saat Ini</th><th>Pemakaian</th><th>Cek Balance</th><th>Keterangan</th></tr></thead><tbody>${rows}</tbody></table>`
-    : `<div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div>`;
+    ? riwBox("soItems")
+    : `<div class="table-wrap"><div class="empty-state">Belum ada item untuk ${escapeHtml(soDivisi)}. Tambahkan lewat "Item baru" di bawah, atau ajukan permintaan dulu.</div></div>`;
 
   const newRows = soNewRows.map((r,i)=>{
     const b = (r.awal !== "" && r.hasil !== "") ? (()=>{ const kel = keluarBulan(soDivisi, r.nama, bulan); const sisa = (Number(r.awal)||0) + (Number(r.masuk)||0) - (Number(r.hasil)||0); return {keluar:kel, sisa, fisik:Number(r.hasil)||0, ok:sisa === kel}; })() : null;
@@ -1949,18 +1998,27 @@ function renderOpname(){
       <button type="button" class="btn-plain" data-sn-del="${i}" aria-label="Hapus baris">×</button>
     </div>`;}).join("");
 
-  const hist = soRows.filter(o=>o.divisi === soDivisi).slice()
+  const histSorted = ()=> soRows.filter(o=>o.divisi === soDivisi).slice()
     .sort((a,b)=> b.bulan.localeCompare(a.bulan) || a.namaBarang.localeCompare(b.namaBarang, "id"));
-  const histRows = hist.map(o=>`<tr>
+  const hist = histSorted();
+  const histRow = o=>`<tr>
       <td>${fmtBulan(o.bulan)}</td><td>${escapeHtml(o.namaBarang)}</td><td>${escapeHtml(o.satuan)}</td>
       <td>${fmtNum(o.stokAwal)}</td><td>${fmtNum(o.barangMasuk)}</td><td>${fmtNum(o.hasilSO)}</td>
       <td>${soPakai(o) < 0 ? `<span class="rm-badge terlambat">${fmtNum(soPakai(o))} · cek</span>` : `<b>${fmtNum(soPakai(o))}</b>`}</td>
       <td>${escapeHtml(o.alasanNotBalance||"")}${o.alasanNotBalance ? "" : ( ((Number(o.stokAwal)||0) + (Number(o.barangMasuk)||0) - (Number(o.hasilSO)||0)) === keluarBulan(o.divisi, o.namaBarang, o.bulan) ? ' <span class="rm-badge aman" title="Sisa Item (Awal + Masuk − Hasil SO) sama dengan Pengeluaran yang tercatat">OK</span>' : ' <span class="rm-badge terlambat" title="Sisa Item (Awal + Masuk − Hasil SO) tidak sama dengan Pengeluaran dan belum ada alasan">NOT BALANCE</span>')}</td>
       <td><button class="so-del" data-so-hist="${escapeHtml(o.id)}" title="Riwayat perubahan">🕘 ${o.history.length}</button>
-          <button class="so-del" data-so-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`).join("");
-  const histTable = hist.length
-    ? `<table><thead><tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Sisa Item</th><th>Alasan / Balance</th><th></th></tr></thead><tbody>${histRows}</tbody></table>`
-    : `<div class="empty-state">Belum ada data Stock Opname untuk ${escapeHtml(soDivisi)}.</div>`;
+          <button class="so-del" data-so-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`;
+  riwCfg.soHist = {
+    rows: histSorted, text: o=> o.namaBarang, ph: "Cari nama item...",
+    head: '<tr><th>Bulan</th><th>Barang</th><th>Satuan</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Sisa Item</th><th>Alasan / Balance</th><th></th></tr>',
+    row: histRow,
+    empty: `<div class="empty-state">Belum ada data Stock Opname untuk ${escapeHtml(soDivisi)}.</div>`,
+    after: root=>{
+      root.querySelectorAll("[data-so-del]").forEach(b=> b.onclick = ()=> askDeleteSo(b.dataset.soDel));
+      root.querySelectorAll("[data-so-hist]").forEach(b=> b.onclick = ()=> openSoHistory(b.dataset.soHist));
+    }
+  };
+  const histTable = riwBox("soHist");
 
   return `
     <div class="page-header">
@@ -1974,7 +2032,7 @@ function renderOpname(){
       <label class="field"><span>Divisi</span><select id="soDiv">${divOpts}</select></label>
     </div>
     <h2 class="sub-title">${escapeHtml(soDivisi)} — ${fmtBulan(bulan)} <span class="count-chip">${items.length} item</span></h2>
-    <div class="table-wrap">${itemsTable}</div>
+    ${itemsTable}
     <div class="section so-new">
       <h3>Item baru (belum pernah diajukan)</h3>
       ${newRows}
@@ -1984,7 +2042,7 @@ function renderOpname(){
       <button type="button" class="btn-accent" id="soSave">Simpan SO</button>
     </div>
     <h2 class="sub-title">Riwayat SO — ${escapeHtml(soDivisi)} <span class="count-chip">${hist.length} data</span></h2>
-    <div class="table-wrap">${histTable}</div>
+    ${histTable}
   `;
 }
 
@@ -2234,12 +2292,20 @@ function openSoHistory(id){
   const o = soRows.find(x=>x.id === id);
   if(!o) return;
   document.getElementById("soHistTitle").textContent = "Riwayat SO — " + o.namaBarang + " (" + fmtBulan(o.bulan) + ")";
-  const rows = o.history.slice().reverse().map(h=>`<tr>
+  const soId = o.id;
+  riwCfg.soModal = {
+    noSearch: true,
+    rows: ()=>{ const x = soRows.find(r=>r.id === soId); return x ? x.history.slice().reverse() : []; },
+    text: h=> (h.k||"") + " " + (h.n||""),
+    head: '<tr><th>Waktu</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th>Keterangan</th><th>Alasan Not Balance</th></tr>',
+    row: h=>`<tr>
     <td>${escapeHtml(new Date(h.w).toLocaleString("id-ID"))}</td><td>${fmtNum(h.a)}</td><td>${fmtNum(h.m)}</td><td>${fmtNum(h.h)}</td>
-    <td><b>${fmtNum((Number(h.a)||0)+(Number(h.m)||0)-(Number(h.h)||0))}</b></td><td>${escapeHtml(h.k||"")}</td><td>${escapeHtml(h.n||"")}</td></tr>`).join("");
-  document.getElementById("soHistBody").innerHTML = o.history.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Stok Awal</th><th>Barang Masuk</th><th>Hasil SO (Fisik)</th><th>Pemakaian</th><th>Keterangan</th><th>Alasan Not Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : '<div class="empty-state">Belum ada riwayat perubahan.</div>';
+    <td><b>${fmtNum((Number(h.a)||0)+(Number(h.m)||0)-(Number(h.h)||0))}</b></td><td>${escapeHtml(h.k||"")}</td><td>${escapeHtml(h.n||"")}</td></tr>`,
+    empty: '<div class="empty-state">Belum ada riwayat perubahan.</div>'
+  };
+  riwGet("soModal").page = 1;
+  document.getElementById("soHistBody").innerHTML = riwBox("soModal");
+  bindRiw();
   lockScroll();
   document.getElementById("soHistModal").hidden = false;
 }
@@ -2254,21 +2320,103 @@ let terimaTab = "permintaan";   // "permintaan" | "penerimaan" | "pengeluaran"
 if(["permintaan","penerimaan","pengeluaran"].includes(globalThis.__tabPref)) terimaTab = globalThis.__tabPref;
 const terimaOptions = ()=> records.filter(r=>r.status !== "Batal").slice().reverse();   // terbaru di atas
 
+// ---------- Tabel riwayat: cari item + halaman (10 data / halaman) ----------
+const RIW_SIZE = 10;
+const riwState = {};   // key -> {q, page}
+const riwCfg = {};     // key -> {rows(), text(r), head, row(r), empty, full, noSearch, ph, after(root)}
+const riwGet = k => riwState[k] || (riwState[k] = {q:"", page:1});
+function riwList(k){
+  const c = riwCfg[k], st = riwGet(k), q = st.q.trim().toLowerCase();
+  const all = c.rows();
+  const list = q ? all.filter(r=> String(c.text(r)).toLowerCase().includes(q)) : all;
+  const pages = Math.max(1, Math.ceil(list.length / RIW_SIZE));
+  st.page = Math.min(Math.max(1, st.page), pages);
+  return {all, list, pages, st};
+}
+function riwPager(k, total, pages, page){
+  if(total <= RIW_SIZE) return `<div class="pager"><span>${total} data</span></div>`;
+  const nums = [];
+  for(let p=1; p<=pages; p++){
+    if(p === 1 || p === pages || Math.abs(p - page) <= 1) nums.push(p);
+    else if(nums[nums.length-1] !== "…") nums.push("…");
+  }
+  const btn = (p, label, dis, on)=> `<button type="button" class="pg-btn${on?" on":""}" data-riw-page="${k}" data-p="${p}" ${dis?"disabled":""}>${label}</button>`;
+  return `<div class="pager"><span>Halaman ${page} dari ${pages} · ${total} data</span><div class="pg-nums">
+    ${btn(page-1, "‹", page<=1)}
+    ${nums.map(p=> p === "…" ? '<span class="pg-gap">…</span>' : btn(p, p, false, p===page)).join("")}
+    ${btn(page+1, "›", page>=pages)}</div></div>`;
+}
+function riwBody(k){
+  const c = riwCfg[k], {list, pages, st} = riwList(k);
+  const slice = list.slice((st.page-1)*RIW_SIZE, st.page*RIW_SIZE);
+  const table = slice.length
+    ? `<table><thead>${c.head}</thead><tbody>${slice.map(c.row).join("")}</tbody></table>`
+    : `<div class="empty-state">Tidak ada data yang cocok dengan pencarian.</div>`;
+  return `<div class="table-wrap">${table}</div>${riwPager(k, list.length, pages, st.page)}`;
+}
+function riwBox(k){
+  const c = riwCfg[k], st = riwGet(k), total = c.rows().length;
+  if(!total) return `<div class="table-wrap">${c.empty}</div>`;
+  const bar = c.noSearch ? "" : `<div class="riw-bar"><div class="search-box">🔍 <input data-riw-q="${k}" placeholder="${escapeHtml(c.ph || "Cari nama item...")}" value="${escapeHtml(st.q)}"></div></div>`;
+  return `${bar}<div data-riw-body="${k}">${riwBody(k)}</div>`;
+}
+function bindRiw(){
+  const refresh = (k)=>{
+    const c = riwCfg[k]; if(!c) return;
+    if(c.full){
+      render();
+      const el = document.querySelector(`[data-riw-q="${k}"]`);
+      if(el && document.activeElement !== el && riwGet(k).q){ el.focus({preventScroll:true}); el.selectionStart = el.selectionEnd = el.value.length; }
+      return;
+    }
+    const body = document.querySelector(`[data-riw-body="${k}"]`);
+    if(!body) return;
+    body.innerHTML = riwBody(k);
+    bindPagers(k); if(c.after) c.after(body);
+  };
+  const bindPagers = (k)=>{
+    document.querySelectorAll(`[data-riw-page="${k}"]`).forEach(b=> b.onclick = ()=>{
+      riwGet(k).page = Number(b.dataset.p); refresh(k);
+    });
+  };
+  document.querySelectorAll("[data-riw-q]").forEach(inp=>{
+    const k = inp.dataset.riwQ;
+    inp.oninput = ()=>{
+      const st = riwGet(k); st.q = inp.value; st.page = 1;
+      if(riwCfg[k] && riwCfg[k].full){
+        const pos = inp.selectionStart; render();
+        const el = document.querySelector(`[data-riw-q="${k}"]`);
+        if(el){ el.focus({preventScroll:true}); el.selectionStart = el.selectionEnd = pos; }
+      }else refresh(k);
+    };
+  });
+  document.querySelectorAll("[data-riw-body]").forEach(b=> bindPagers(b.dataset.riwBody));
+}
+function bindOutDel(root){
+  (root || document).querySelectorAll("[data-out-del]").forEach(b=> b.onclick = ()=>{
+    const i = outRows.findIndex(o=>o.id === b.dataset.outDel);
+    if(i >= 0){ outRows.splice(i,1); persistOut(); render(); }
+  });
+}
+
 function renderTerima(){
   if(terimaTab === "permintaan" && (!form || editingId)){ form = {...emptyForm(), id:idFor()}; editingId = null; proofState = newProofState([]); }   // draft siap sebelum render
   const opts = terimaOptions().map(r=>`<option value="${escapeHtml(r.noPengadaan)}">${escapeHtml(r.namaBarang)} — ${escapeHtml(r.qty)} ${escapeHtml(r.satuan)}</option>`).join("");
-  const recent = records.filter(r=> r.status !== "Batal" && terimaInfo(r).kind !== "belum")
-    .slice().sort((a,b)=> String(b.tglDiterima||"").localeCompare(String(a.tglDiterima||""))).slice(0, 8);
-  const recentHtml = recent.length === 0
-    ? `<div class="empty-state">Belum ada penerimaan yang dicatat.</div>`
-    : `<table><thead><tr><th>No. Pengadaan</th><th>Barang</th><th>Qty PO</th><th>Qty Diterima</th><th>Tgl Diterima</th></tr></thead><tbody>
-        ${recent.map(r=>`<tr>
+  riwCfg.terima = {
+    rows: ()=> records.filter(r=> r.status !== "Batal" && terimaInfo(r).kind !== "belum")
+      .slice().sort((x,y)=> String(y.tglDiterima||"").localeCompare(String(x.tglDiterima||""))),
+    text: r=> r.namaBarang + " " + r.noPengadaan,
+    ph: "Cari nama item / no. pengadaan...",
+    head: '<tr><th>No. Pengadaan</th><th>Barang</th><th>Qty PO</th><th>Qty Diterima</th><th>Tgl Diterima</th></tr>',
+    row: r=>`<tr>
           <td class="mono">${escapeHtml(r.noPengadaan)}</td>
           <td>${escapeHtml(r.namaBarang)}</td>
           <td>${escapeHtml(r.qty)} ${escapeHtml(r.satuan)}</td>
           <td>${escapeHtml(r.qtyDiterima)} ${escapeHtml(r.satuan)}${terimaBadge(r)}</td>
-          <td>${formatTgl(r.tglDiterima)}</td></tr>`).join("")}
-      </tbody></table>`;
+          <td>${formatTgl(r.tglDiterima)}</td></tr>`,
+    empty: '<div class="empty-state">Belum ada penerimaan yang dicatat.</div>'
+  };
+  const recentHtml = riwBox("terima");
   const penerimaanHtml = `
     <form id="terimaForm" autocomplete="off">
       <div class="section">
@@ -2304,8 +2452,8 @@ function renderTerima(){
         <button type="button" class="btn-plain" id="tReset">Reset</button>
       </div>
     </form>
-    <h2 class="sub-title">Penerimaan Terakhir</h2>
-    <div class="table-wrap">${recentHtml}</div>`;
+    <h2 class="sub-title">Riwayat Penerimaan</h2>
+    ${recentHtml}`;
   return `
     <div class="page-header">
       <div>
@@ -2325,17 +2473,21 @@ function renderTerima(){
 function renderPengeluaran(){
   const satOpts = SATUAN_LIST.map(s=>`<option ${keluarForm.satuan===s?"selected":""}>${s}</option>`).join("");
 
-  const recent = outRows.slice().sort((a,b)=> String(b.tanggal).localeCompare(String(a.tanggal)) || String(b.id).localeCompare(String(a.id))).slice(0, 30);
-  const recentHtml = recent.length === 0
-    ? `<div class="empty-state">Belum ada pengeluaran yang dicatat. Pengeluaran harian dipakai untuk cek balance di Stock Opname.</div>`
-    : `<table><thead><tr><th>Tanggal</th><th>Barang</th><th>Qty Keluar</th><th>Keterangan</th><th></th></tr></thead><tbody>
-        ${recent.map(o=>`<tr>
+  riwCfg.keluar = {
+    rows: ()=> outRows.slice().sort((x,y)=> String(y.tanggal).localeCompare(String(x.tanggal)) || String(y.id).localeCompare(String(x.id))),
+    text: o=> o.namaBarang + " " + (o.keterangan||""),
+    ph: "Cari nama item...",
+    head: '<tr><th>Tanggal</th><th>Barang</th><th>Qty Keluar</th><th>Keterangan</th><th></th></tr>',
+    row: o=>`<tr>
           <td>${formatTgl(o.tanggal)}</td>
           <td>${escapeHtml(o.namaBarang)}</td>
           <td>${fmtNum(o.qty)} ${escapeHtml(o.satuan)}</td>
           <td>${escapeHtml(o.keterangan)}</td>
-          <td><button class="so-del" data-out-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`).join("")}
-      </tbody></table>`;
+          <td><button class="so-del" data-out-del="${escapeHtml(o.id)}" title="Hapus">🗑</button></td></tr>`,
+    empty: '<div class="empty-state">Belum ada pengeluaran yang dicatat. Pengeluaran harian dipakai untuk cek balance di Stock Opname.</div>',
+    after: root=> bindOutDel(root)
+  };
+  const recentHtml = riwBox("keluar");
 
   return `
     <form id="keluarForm" autocomplete="off" onsubmit="return false">
@@ -2358,8 +2510,8 @@ function renderPengeluaran(){
         <button type="button" class="btn-plain" id="kReset">Reset</button>
       </div>
     </form>
-    <h2 class="sub-title">Pengeluaran Terakhir</h2>
-    <div class="table-wrap">${recentHtml}</div>
+    <h2 class="sub-title">Riwayat Pengeluaran</h2>
+    ${recentHtml}
   `;
 }
 
@@ -2437,10 +2589,7 @@ function bindPengeluaran(){
   }catch(acErr){ console.error("Autocomplete pengeluaran gagal:", acErr); }
   const rs = document.getElementById("kReset");
   if(rs) rs.onclick = ()=>{ keluarForm = { tanggal: todayISO(), nama: "", satuan: "Pcs", qty: "", ket: "" }; keluarDivisiNama = ""; render(); };
-  document.querySelectorAll("[data-out-del]").forEach(b=> b.onclick = ()=>{
-    const i = outRows.findIndex(o=>o.id === b.dataset.outDel);
-    if(i >= 0){ outRows.splice(i,1); persistOut(); render(); }
-  });
+  bindOutDel();
 }
 
 function bindTerima(){
