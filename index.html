@@ -1950,7 +1950,7 @@ function renderOpname(){
     </div>`;}).join("");
 
   const hist = soRows.filter(o=>o.divisi === soDivisi).slice()
-    .sort((a,b)=> b.bulan.localeCompare(a.bulan) || a.namaBarang.localeCompare(b.namaBarang, "id")).slice(0, 40);
+    .sort((a,b)=> b.bulan.localeCompare(a.bulan) || a.namaBarang.localeCompare(b.namaBarang, "id"));
   const histRows = hist.map(o=>`<tr>
       <td>${fmtBulan(o.bulan)}</td><td>${escapeHtml(o.namaBarang)}</td><td>${escapeHtml(o.satuan)}</td>
       <td>${fmtNum(o.stokAwal)}</td><td>${fmtNum(o.barangMasuk)}</td><td>${fmtNum(o.hasilSO)}</td>
@@ -1983,7 +1983,7 @@ function renderOpname(){
     <div class="form-actions" style="margin-top:18px;">
       <button type="button" class="btn-accent" id="soSave">Simpan SO</button>
     </div>
-    <h2 class="sub-title">Riwayat SO — ${escapeHtml(soDivisi)}</h2>
+    <h2 class="sub-title">Riwayat SO — ${escapeHtml(soDivisi)} <span class="count-chip">${hist.length} data</span></h2>
     <div class="table-wrap">${histTable}</div>
   `;
 }
