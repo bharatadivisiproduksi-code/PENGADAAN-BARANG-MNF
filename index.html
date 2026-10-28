@@ -1918,7 +1918,7 @@ function renderOpname(){
     const keluarNote = kel ? `<div class="sub-text">dari tab Pengeluaran</div>` : "";
     return `<tr>
       <td>${escapeHtml(i.nama)}${e.saved ? ' <span class="rm-badge aman">tersimpan</span>' : ""}</td>
-      <td>${escapeHtml(i.satuan)}</td>
+      <td>${escapeHtml(i.satuan)} <button type="button" class="so-del" data-sat-edit="${k}" title="Ganti satuan item ini" aria-label="Ganti satuan">✎</button></td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="awal" value="${escapeHtml(e.awal)}">${awalNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="masuk" value="${escapeHtml(e.masuk)}">${masukNote}</td>
       <td><input type="number" min="0" step="any" class="so-input" data-so="${k}" data-f="hasil" value="${escapeHtml(e.hasil)}" placeholder="hitung fisik"></td>
@@ -1996,6 +1996,101 @@ function buildSoRecord(divisi, nama, satuan, bulan, e, existingId){
           hasilSO:entry.h, keterangan:e.ket||"", alasanNotBalance:e.alasan||"", history};
 }
 
+// ---------- Ganti satuan 1 item (gabungkan item dobel Box/Pcs dst.) ----------
+// Satuan diganti serentak di pengajuan, SO, dan pengeluaran, sehingga semua rumus
+// (Analisa, Stok Saat Ini, SO, Laporan) tetap membaca data yang sama.
+function satuanImpact(it, baru){
+  const keyLama = itemKey(it.divisi, it.nama, it.satuan), keyBaru = itemKey(it.divisi, it.nama, baru);
+  const same = (d,n,s2)=> itemKey(d,n,s2) === keyLama;
+  const recs = records.filter(r=> same(r.divisi, r.namaBarang, r.satuan));
+  const sos  = soRows.filter(o=> same(o.divisi, o.namaBarang, o.satuan));
+  const outs = outRows.filter(o=> same(o.divisi, o.namaBarang, o.satuan));
+  const konflik = sos.filter(o=> soRows.some(x=> x.bulan === o.bulan && itemKey(x.divisi, x.namaBarang, x.satuan) === keyBaru)).map(o=>o.bulan);
+  return {keyLama, keyBaru, recs, sos, outs, konflik};
+}
+function openGantiSatuan(it){
+  let ov = document.getElementById("satModal");
+  if(!ov){
+    ov = document.createElement("div");
+    ov.className = "modal-overlay"; ov.id = "satModal"; ov.hidden = true;
+    ov.innerHTML = `<div class="modal modal-confirm" role="dialog" aria-modal="true">
+      <h3 id="satTitle">GANTI SATUAN</h3>
+      <p id="satDesc"></p>
+      <label class="field" style="text-align:left;margin:10px 0"><span>Satuan baru</span><select id="satSel"></select></label>
+      <p id="satInfo" style="font-size:13px"></p>
+      <div class="modal-actions">
+        <button type="button" class="modal-no" id="satNo">Batal</button>
+        <button type="button" class="modal-yes" id="satYes">Ganti</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+  }
+  const sel = document.getElementById("satSel"), info = document.getElementById("satInfo"), yes = document.getElementById("satYes");
+  document.getElementById("satDesc").textContent = it.nama + " — satuan sekarang: " + it.satuan;
+  sel.innerHTML = SATUAN_LIST.filter(x=> x.toLowerCase() !== String(it.satuan).toLowerCase()).map(x=>`<option>${escapeHtml(x)}</option>`).join("");
+  const refresh = ()=>{
+    const im = satuanImpact(it, sel.value);
+    let t = `Ikut berubah: ${im.recs.length} pengajuan, ${im.sos.length} data SO, ${im.outs.length} pengeluaran.`;
+    if(im.konflik.length){
+      t += ` TIDAK BISA: SO bulan ${im.konflik.map(fmtBulan).join(", ")} sudah ada juga di satuan ${sel.value}. Hapus salah satunya dulu (🗑 di Riwayat SO).`;
+      info.style.color = "var(--danger, #e5484d)";
+    }else info.style.color = "";
+    info.textContent = t;
+    yes.disabled = im.konflik.length > 0;
+  };
+  sel.onchange = refresh; refresh();
+  const close = ()=>{ ov.hidden = true; };
+  document.getElementById("satNo").onclick = close;
+  yes.onclick = ()=>{
+    const baru = sel.value;
+    close();
+    gantiSatuanItem(it, baru).catch(err=>alert(err.message));
+  };
+  ov.hidden = false;
+}
+async function gantiSatuanItem(it, baru){
+  const im = satuanImpact(it, baru);
+  if(im.keyLama === im.keyBaru || im.konflik.length) return;
+  const nowIso = new Date().toISOString();
+  const recIds = new Set(im.recs.map(r=>r.id)), soIds = new Set(im.sos.map(o=>o.id)), outIds = new Set(im.outs.map(o=>o.id));
+  const beforeRec = new Map(im.recs.map(r=>[r.id, {...r}])), beforeSo = new Map(im.sos.map(o=>[o.id, {...o}]));
+  const list = [];   // {kind, obj}
+  records.forEach((r,i)=>{ if(recIds.has(r.id)){ records[i] = normRecord({...r, satuan:baru}); list.push({kind:"rec", obj:records[i]}); } });
+  soRows.forEach((o,i)=>{ if(soIds.has(o.id)){
+    const h = (o.history||[]).concat([{w:nowIso, a:o.stokAwal, m:o.barangMasuk, h:o.hasilSO, k:"Satuan diganti: "+it.satuan+" → "+baru, n:o.alasanNotBalance||""}]).slice(-20);
+    soRows[i] = normSo({...o, satuan:baru, history:h}); list.push({kind:"so", obj:soRows[i]});
+  }});
+  outRows.forEach(o=>{ if(outIds.has(o.id)) o.satuan = baru; });
+  persistOut();
+  if(view !== "form") render();
+  saveStart(false);
+  if(!onlineMode()){ persist(); persistSo(); saveDone(); return; }
+  pendingWrites++;
+  const failed = [];
+  let next = 0;
+  const worker = async ()=>{
+    while(next < list.length){
+      const x = list[next++];
+      try{
+        if(x.kind === "rec") await apiRequest({action:"save", record:x.obj});
+        else await apiRequest({action:"saveSO", record:{...x.obj, history: JSON.stringify(x.obj.history)}});
+      }catch(e){ failed.push({x, e}); }
+    }
+  };
+  try{ await Promise.all([worker(), worker(), worker()]); }
+  finally{ pendingWrites--; }
+  if(failed.length){
+    failed.forEach(({x})=>{                      // kembalikan hanya yang gagal agar tetap sama dengan server
+      if(x.kind === "rec"){ const i = records.findIndex(r=>r.id===x.obj.id); if(i>=0) records[i] = beforeRec.get(x.obj.id); }
+      else { const i = soRows.findIndex(r=>r.id===x.obj.id); if(i>=0) soRows[i] = beforeSo.get(x.obj.id); }
+    });
+    if(view !== "form") render();
+    saveFail(failed.length + " DATA GAGAL");
+    throw new Error("Gagal mengganti satuan pada " + failed.length + " dari " + list.length + " data: " + failed[0].e.message + "\nCoba ganti satuan sekali lagi.");
+  }
+  showSyncStatus("✓ Satuan diganti • " + new Date().toLocaleTimeString("id-ID"));
+  saveDone();
+}
+
 function bindOpname(){
   const bulan = document.getElementById("soBulan").value || bulanKey(new Date());
   const items = analyzeItems().filter(i=>i.divisi === soDivisi);
@@ -2048,6 +2143,7 @@ function bindOpname(){
   document.querySelectorAll("[data-sn-del]").forEach(b=> b.onclick = ()=>{ soNewRows.splice(Number(b.dataset.snDel),1); render(); });
   document.querySelectorAll("[data-so-del]").forEach(b=> b.onclick = ()=> askDeleteSo(b.dataset.soDel));
   document.querySelectorAll("[data-so-hist]").forEach(b=> b.onclick = ()=> openSoHistory(b.dataset.soHist));
+  document.querySelectorAll("[data-sat-edit]").forEach(b=> b.onclick = ()=>{ const it = byKey.get(b.dataset.satEdit); if(it) openGantiSatuan(it); });
   document.getElementById("soSave").onclick = ()=>{
     if(!/^\d{4}-\d{2}$/.test(bulan)){ alert("Pilih bulan SO dulu."); return; }
     const recs = [], missing = [], missingAlasan = [];
