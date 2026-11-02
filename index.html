@@ -157,6 +157,10 @@
   tr.row-flash td{animation:rowFlash 1.6s ease;}
   @keyframes rowFlash{from{background:rgba(217,138,43,.38);}to{background:transparent;}}
   .load-more{padding:18px;text-align:center;color:var(--muted);font-size:13px;}
+  .btn-belum{position:relative;}
+  .btn-bubble{position:absolute;top:-9px;right:-9px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#E5484D;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--paper,#0b1020);}
+  .modal-belum{max-width:640px;max-height:85vh;overflow-y:auto;overscroll-behavior:contain;text-align:left;padding:22px;}
+  .modal-belum .modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
   .riw-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;}
   .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 2px;font-size:13px;color:var(--muted);}
   .pager .pg-nums{display:flex;gap:4px;flex-wrap:wrap;}
@@ -984,6 +988,43 @@ function render(){
   saveUI();
 }
 
+// Pengadaan belum selesai = status selain "Selesai" dan "Batal"
+const belumSelesaiList = ()=> records
+  .filter(r=> r.status !== "Selesai" && r.status !== "Batal")
+  .slice().sort((a,b)=> String(a.tglPengajuan||"").localeCompare(String(b.tglPengajuan||"")));
+
+function openBelumSelesai(){
+  let ov = document.getElementById("belumModal");
+  if(!ov){
+    ov = document.createElement("div");
+    ov.className = "modal-overlay"; ov.id = "belumModal"; ov.hidden = true;
+    ov.innerHTML = `<div class="modal modal-belum" role="dialog" aria-modal="true" aria-labelledby="belumTitle">
+      <div class="modal-head"><h3 id="belumTitle" style="margin:0"></h3><button type="button" class="btn-plain" id="belumClose">Tutup</button></div>
+      <div id="belumBody"></div></div>`;
+    document.body.appendChild(ov);
+    const close = ()=>{ ov.hidden = true; unlockScroll(); };
+    ov.querySelector("#belumClose").onclick = close;
+    ov.addEventListener("click", e=>{ if(e.target === ov) close(); });
+    document.addEventListener("keydown", e=>{ if(e.key === "Escape" && !ov.hidden) close(); });
+  }
+  const list = belumSelesaiList();
+  document.getElementById("belumTitle").innerHTML = `DAFTAR PERMINTAAN BELUM SELESAI <span class="count-chip">${list.length}</span>`;
+  document.getElementById("belumBody").innerHTML = list.length === 0
+    ? '<div class="empty-state">Semua permintaan sudah selesai. 🎉</div>'
+    : list.map(r=>{
+        const c = STATUS_COLORS[r.status] || "#7A8699";
+        return `<div class="remind-row">
+          <div class="rm-main">
+            <div class="rm-name">${escapeHtml(r.namaBarang)} <span class="div-chip">${escapeHtml(r.divisi)}</span></div>
+            <div class="rm-sub">${escapeHtml(r.noPengadaan)} · Diajukan: ${formatTgl(r.tglPengajuan)} · Qty: ${fmtNum(r.qty)} ${escapeHtml(r.satuan)}</div>
+          </div>
+          <span class="status-badge" style="border-color:${c};color:${c}"><span class="status-dot" style="background:${c}"></span>${escapeHtml(r.status)}</span>
+        </div>`;
+      }).join("");
+  lockScroll();
+  ov.hidden = false;
+}
+
 function renderDashboard(){
   const stats = computeStats();
   const optBulanStat = ["Semua",...MONTHS].map(m=>`<option value="${m}" ${statBulan===m?"selected":""}>${m==="Semua"?"Semua Bulan":m}</option>`).join("");
@@ -996,7 +1037,7 @@ function renderDashboard(){
         <h1>Dashboard Pengadaan</h1>
         <p>Ringkasan seluruh pengajuan barang.</p>
       </div>
-      <div class="header-actions">${themeToggleHTML()}<button class="btn-dark" id="btnAddDash">+ Pengadaan Baru</button></div>
+      <div class="header-actions">${themeToggleHTML()}<button type="button" class="btn-outline btn-belum" id="btnBelum" title="Lihat permintaan yang masih dalam proses">Daftar Permintaan Belum Selesai${belumSelesaiList().length ? `<span class="btn-bubble" aria-label="${belumSelesaiList().length} permintaan belum selesai">${belumSelesaiList().length}</span>` : ""}</button><button class="btn-dark" id="btnAddDash">+ Pengadaan Baru</button></div>
     </div>
     <div class="stat-row">
       <div class="stat-card"><div class="icon">▣</div><div class="label">Total Pengadaan</div><div class="value">${stats.total}</div></div>
@@ -1283,6 +1324,8 @@ function attachHandlers(){
       cardKurang.onclick = go;
       cardKurang.onkeydown = (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } };
     }
+    const btnBelum = document.getElementById("btnBelum");
+    if(btnBelum) btnBelum.onclick = openBelumSelesai;
     const statBulanSelect = document.getElementById("statBulanSelect");
     if(statBulanSelect) statBulanSelect.onchange = (e)=>{ statBulan = e.target.value; render(); };
   }
@@ -3113,3 +3156,4 @@ if(onlineMode()){
 </script>
 </body>
 </html>
+
