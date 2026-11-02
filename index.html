@@ -1473,6 +1473,21 @@ function keluarBulanDari(divisi, nama, dariBulan){
       ? t + (Number(o.qty)||0) : t;
   }, 0);
 }
+// Pengeluaran tercatat SETELAH tanggal tertentu (tanggal > dari): {qty, n}
+function keluarSetelah(divisi, nama, dari){
+  const nm = String(nama||"").trim().toLowerCase();
+  const d = String(divisi||"").trim().toLowerCase();
+  let qty = 0, n = 0;
+  const nowD = new Date(), hariIni = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
+  outRows.forEach(o=>{
+    const od = String(o.divisi||"").trim().toLowerCase();
+    if(!(od === d || od === "" || d === "")) return;
+    if(String(o.namaBarang).trim().toLowerCase() !== nm) return;
+    const t = parseYMD(o.tanggal);
+    if(t && t > dari && t <= hariIni){ qty += Number(o.qty)||0; n++; }   // tanggal lewat hari ini diabaikan
+  });
+  return {qty, n};
+}
 function keluarBulan(divisi, nama, bulan){
   const n = String(nama||"").trim().toLowerCase();
   const d = String(divisi||"").trim().toLowerCase();
@@ -1547,13 +1562,20 @@ function analyzeItems(){
     let need = null, source = null;
     if(soMonthly != null){ need = soMonthly; source = "so"; }
     else if(count >= 2 && reqAvg > 0){ need = reqAvg; source = "pengajuan"; }
-    // --- stok sekarang (estimasi): Hasil SO (stok fisik) terakhir + penerimaan sesudahnya - perkiraan pemakaian ---
+    // --- stok sekarang (satu rumus untuk semua menu) ---
+    // Stok = Hasil SO terakhir + barang diterima sesudah SO - pemakaian sesudah SO.
+    // Pemakaian = pengeluaran yang TERCATAT; kalau belum ada yang tercatat, dipakai PERKIRAAN dari rata-rata.
     const lastSO = g.so.length ? g.so[g.so.length-1] : null;
-    let stock = null, asOf = null;
+    let stock = null, asOf = null, stokDetail = null;
     if(lastSO){
       asOf = new Date(Math.min(monthEnd(lastSO.m).getTime(), today.getTime()));
       const daysSince = Math.max(0, dayDiff(asOf, today));
-      stock = Math.max(0, lastSO.fisik + recvIn(recvList, asOf, today) - (need ? need / MONTH_DAYS * daysSince : 0));
+      const masukSesudah = recvIn(recvList, asOf, today);
+      const kel = keluarSetelah(g.divisi, g.nama, asOf);
+      const estimasi = kel.n === 0;
+      const pakai = estimasi ? Math.round(need ? need / MONTH_DAYS * daysSince : 0) : kel.qty;
+      stock = Math.max(0, Math.round((lastSO.fisik + masukSesudah - pakai) * 100) / 100);
+      stokDetail = {dasar:lastSO.fisik, masuk:masukSesudah, keluar:pakai, estimasi};
     }
     const onOrder = g.rows.filter(x=> x.recv == null && (x.status==="Pengajuan" || x.status==="Disetujui")
                                        && (today - x.d)/DAY_MS <= 60 && (!asOf || x.d >= asOf)).reduce((t,x)=> t + x.qty, 0);
@@ -1577,7 +1599,7 @@ function analyzeItems(){
     const projectedNow = (stock || 0) + onOrder;
     const suggest = need ? Math.max(1, Math.ceil(need / 2), Math.ceil(need - projectedNow)) : Math.max(1, Math.ceil(reqAvg || 1));
     out.push({key:g.key, divisi:g.divisi, nama:g.nama, satuan:g.satuan, count, total, avg, reqAvg, source, anomaly,
-              last, lastQty, lastSO, soEntries:g.so, stock, onOrder, runout, daysLeft, status, basis, suggest, recvList,
+              last, lastQty, lastSO, soEntries:g.so, stock, stokDetail, onOrder, runout, daysLeft, status, basis, suggest, recvList,
               spec: last ? last.spec : "", harga: last ? last.harga : 0, supplier: last ? last.supplier : ""});
   });
   return out;
@@ -1694,47 +1716,33 @@ function renderRemindPanel(){
 }
 
 function stokKiniItems(){
-  // Stok saat ini (read-only) = Stok Awal + Barang Masuk - Barang Keluar (pengeluaran tercatat)
-  // Mengambil SO TERAKHIR tiap item sebagai basis stok awal & barang masuk.
-  const perItem = new Map();
-  soRows.forEach(o=>{
-    const nama = String(o.namaBarang||"").trim();
-    if(!nama) return;
-    const key = (o.divisi||"").toLowerCase() + "|" + nama.toLowerCase();
-    const cur = perItem.get(key);
-    if(!cur || String(o.bulan) > String(cur.bulan)) perItem.set(key, o);
-  });
-  const list = [];
-  perItem.forEach(o=>{
-    const kel = keluarBulanDari(o.divisi, o.namaBarang, o.bulan);
-    const awal = Number(o.stokAwal)||0;
-    const masuk = Number(o.barangMasuk)||0;
-    list.push({divisi:o.divisi||"", nama:String(o.namaBarang), satuan:o.satuan||"", bulan:o.bulan,
-               awal, masuk, keluar:kel, stok: awal + masuk - kel});
-  });
-  list.sort((a,b)=> a.divisi.localeCompare(b.divisi) || a.nama.localeCompare(b.nama));
-  return list;
+  // Stok saat ini (read-only): rumus yang sama dengan Analisa Kebutuhan
+  // = Hasil SO terakhir + barang diterima sesudah SO - pemakaian sesudah SO (tercatat; atau perkiraan jika belum dicatat)
+  return analyzeItems().filter(i=> i.stock != null && i.stokDetail)
+    .map(i=>({divisi:i.divisi||"", nama:i.nama, satuan:i.satuan||"", bulan:i.lastSO.m,
+              awal:i.stokDetail.dasar, masuk:i.stokDetail.masuk, keluar:i.stokDetail.keluar, estimasi:i.stokDetail.estimasi, stok:i.stock}))
+    .sort((a,b)=> a.divisi.localeCompare(b.divisi) || a.nama.localeCompare(b.nama));
 }
 
 function renderStokKiniPanel(){
   const list = stokKiniItems();
   const body = list.length === 0
     ? `<div class="empty-state">Belum ada data Stock Opname. Stok saat ini otomatis muncul setelah SO diisi.</div>`
-    : `<table class="stk-kini-table"><thead><tr><th>Barang</th><th>Divisi</th><th>Satuan</th><th>Stok Awal</th><th>Masuk</th><th>Keluar</th><th class="stk-now">Stok Saat Ini</th></tr></thead><tbody>
+    : `<table class="stk-kini-table"><thead><tr><th>Barang</th><th>Divisi</th><th>Satuan</th><th>Hasil SO Terakhir</th><th>Masuk</th><th>Keluar</th><th class="stk-now">Stok Saat Ini</th></tr></thead><tbody>
         ${list.map(i=>`<tr>
           <td>${escapeHtml(i.nama)}</td>
           <td>${escapeHtml(i.divisi)}</td>
           <td>${escapeHtml(i.satuan)}</td>
           <td>${fmtNum(i.awal)}</td>
           <td>+${fmtNum(i.masuk)}</td>
-          <td>-${fmtNum(i.keluar)}</td>
+          <td>-${fmtNum(i.keluar)}${i.estimasi ? ' <span class="sub-text">(perkiraan)</span>' : ""}</td>
           <td class="stk-now"><b>${fmtNum(i.stok)}</b> ${escapeHtml(i.satuan)}</td>
         </tr>`).join("")}
       </tbody></table>`;
   return `
     <div class="panel">
       <div class="remind-head"><h2>Stok Saat Ini <span class="count-chip">${list.length}</span></h2></div>
-      <div class="sub-text">Perhitungan otomatis: Stok Awal + Barang Masuk − Barang Keluar (dari SO terakhir & pengeluaran tercatat). Angka hanya tampilan, tidak bisa diubah.</div>
+      <div class="sub-text">Perhitungan otomatis: Hasil SO terakhir + Barang Masuk − Barang Keluar sesudah SO. Barang keluar memakai pengeluaran yang dicatat; kalau belum ada, dipakai perkiraan. Sama dengan kolom Stok Sekarang di Analisa Kebutuhan.</div>
       ${body}
     </div>`;
 }
@@ -1788,7 +1796,7 @@ function renderAnalisa(){
           <td>${i.count}×</td>
           <td>${fmtNum(i.total)}</td>
           <td><b>${fmtNum(i.avg)}</b> ${srcTag(i)}<div class="avg-bar"><i style="width:${Math.round(i.avg/maxAvg*100)}%"></i></div></td>
-          <td>${i.stock == null ? '<span class="muted-dash">–</span>' : fmtNum(i.stock)}${i.stock == null ? "" : `<div class="sub-text">SO ${fmtBulan(i.lastSO.m)}${i.onOrder ? " · +" + fmtNum(i.onOrder) + " proses" : ""}</div>`}</td>
+          <td>${i.stock == null ? '<span class="muted-dash">–</span>' : fmtNum(i.stock)}${i.stock == null ? "" : `<div class="sub-text">SO ${fmtBulan(i.lastSO.m)} · pemakaian ${i.stokDetail && i.stokDetail.estimasi ? "perkiraan" : "tercatat"}${i.onOrder ? " · +" + fmtNum(i.onOrder) + " proses" : ""}</div>`}</td>
           <td>${i.last ? formatTgl(toYMD(i.last.d)) + `<div class="sub-text">${fmtNum(i.lastQty)} ${escapeHtml(i.satuan)}</div>` : '<span class="muted-dash">–</span>'}</td>
           <td>${i.runout ? formatTgl(toYMD(i.runout)) : '<span class="muted-dash">–</span>'}</td>
           <td>${rmBadge(i)}</td>
@@ -1880,7 +1888,7 @@ function exportAnalisa(){
     const rows = items.filter(i=>i.divisi === div).sort((a,b)=> b.avg - a.avg).map(i=>({
       "Nama Barang": i.nama, "Satuan": i.satuan, "Jumlah Pengajuan": i.count, "Total Diminta": i.total,
       "Kebutuhan per Bulan": Math.round(i.avg*100)/100, "Sumber Kebutuhan": i.source || "",
-      "Stok Sekarang (estimasi)": i.stock == null ? "" : Math.round(i.stock*10)/10,
+      "Stok Sekarang": i.stock == null ? "" : i.stock,
       "SO Terakhir": i.lastSO ? fmtBulan(i.lastSO.m) : "",
       "Pengajuan Terakhir": i.last ? formatTgl(toYMD(i.last.d)) : "", "Qty Terakhir": i.last ? i.lastQty : "",
       "Perkiraan Habis": i.runout ? formatTgl(toYMD(i.runout)) : "",
