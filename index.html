@@ -1839,7 +1839,7 @@ function renderAnalisa(){
           <td>${i.count}×</td>
           <td>${fmtNum(i.total)}</td>
           <td><b>${fmtNum(i.avg)}</b> ${srcTag(i)}<div class="avg-bar"><i style="width:${Math.round(i.avg/maxAvg*100)}%"></i></div></td>
-          <td>${i.stock == null ? '<span class="muted-dash">–</span>' : fmtNum(i.stock)}${i.stock == null ? "" : ${fmtBulan(i.lastSO.m)} · ${i.stokDetail && i.stokDetail.estimasi ? : "tercatat"}${i.onOrder ? " · +" + fmtNum(i.onOrder) + " proses" : ""}</div>`}</td>
+          <td>${i.stock == null ? '<span class="muted-dash">–</span>' : fmtNum(i.stock)}${i.stock == null ? "" : `<div class="sub-text">SO ${fmtBulan(i.lastSO.m)} · pemakaian ${i.stokDetail && i.stokDetail.estimasi ? "perkiraan" : "tercatat"}${i.onOrder ? " · +" + fmtNum(i.onOrder) + " proses" : ""}</div>`}</td>
           <td>${i.last ? formatTgl(toYMD(i.last.d)) + `<div class="sub-text">${fmtNum(i.lastQty)} ${escapeHtml(i.satuan)}</div>` : '<span class="muted-dash">–</span>'}</td>
           <td>${i.runout ? formatTgl(toYMD(i.runout)) : '<span class="muted-dash">–</span>'}</td>
           <td>${rmBadge(i)}</td>
@@ -3156,4 +3156,3 @@ if(onlineMode()){
 </script>
 </body>
 </html>
-
