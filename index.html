@@ -1620,8 +1620,10 @@ function analyzeItems(){
       stock = Math.max(0, Math.round((lastSO.fisik + masukSesudah - pakai) * 100) / 100);
       stokDetail = {dasar:lastSO.fisik, masuk:masukSesudah, keluar:pakai, estimasi};
     }
-    const onOrder = g.rows.filter(x=> x.recv == null && (x.status==="Pengajuan" || x.status==="Disetujui")
-                                       && (today - x.d)/DAY_MS <= 60 && (!asOf || x.d >= asOf)).reduce((t,x)=> t + x.qty, 0);
+    // pengajuan yang masih diproses (belum diterima/selesai), dari mana pun dibuatnya (menu Permintaan maupun tombol Ajukan di Analisa)
+    const pending = g.rows.filter(x=> x.recv == null && (x.status==="Pengajuan" || x.status==="Disetujui" || x.status==="Diterima")
+                                       && (today - x.d)/DAY_MS <= 60);
+    const onOrder = pending.reduce((t,x)=> t + x.qty, 0);
     // --- status ---
     let basis = null, runout = null, daysLeft = null, status = "data";
     if(stock != null && need != null){
@@ -1638,6 +1640,8 @@ function analyzeItems(){
       daysLeft = Math.round((runout - today) / DAY_MS);
       status = daysLeft < 0 ? "terlambat" : daysLeft <= remindLead ? "segera" : "aman";
     }
+    // sudah ada pengajuan yang berjalan -> pengingat hilang (di Analisa, Dashboard, dan badge menu)
+    if(pending.length && (status === "terlambat" || status === "segera")) status = "diajukan";
     const avg = need != null ? need : reqAvg;
     const projectedNow = (stock || 0) + onOrder;
     const suggest = need ? Math.max(1, Math.ceil(need / 2), Math.ceil(need - projectedNow)) : Math.max(1, Math.ceil(reqAvg || 1));
@@ -1653,6 +1657,7 @@ const reminderItems = ()=> analyzeItems().filter(i=> (i.status==="terlambat" || 
 function rmBadge(it){
   if(it.status === "terlambat") return `<span class="rm-badge terlambat">${it.basis==="stok" ? "Stok habis" : "Terlambat " + (-it.daysLeft) + " hari"}</span>`;
   if(it.status === "segera")    return `<span class="rm-badge segera">${it.daysLeft <= 0 ? "Habis hari ini" : it.daysLeft + " hari lagi"}</span>`;
+  if(it.status === "diajukan")  return `<span class="rm-badge aman" title="Sudah ada pengajuan yang masih diproses (${fmtNum(it.onOrder)} ${escapeHtml(it.satuan)})">Sudah diajukan</span>`;
   if(it.status === "aman")      return `<span class="rm-badge aman">${it.daysLeft == null ? "Aman" : it.daysLeft + " hari lagi"}</span>`;
   return `<span class="rm-badge data" title="Butuh data SO, atau minimal 2 pengajuan dalam periode analisa">Data kurang</span>`;
 }
@@ -1935,7 +1940,7 @@ function exportAnalisa(){
       "SO Terakhir": i.lastSO ? fmtBulan(i.lastSO.m) : "",
       "Pengajuan Terakhir": i.last ? formatTgl(toYMD(i.last.d)) : "", "Qty Terakhir": i.last ? i.lastQty : "",
       "Perkiraan Habis": i.runout ? formatTgl(toYMD(i.runout)) : "",
-      "Status": i.status==="terlambat" ? (i.basis==="stok" ? "Stok habis" : "Terlambat "+(-i.daysLeft)+" hari") : i.status==="segera" ? i.daysLeft+" hari lagi (segera ajukan)" : i.status==="aman" ? "Aman" : "Data kurang"
+      "Status": i.status==="terlambat" ? (i.basis==="stok" ? "Stok habis" : "Terlambat "+(-i.daysLeft)+" hari") : i.status==="segera" ? i.daysLeft+" hari lagi (segera ajukan)" : i.status==="diajukan" ? "Sudah diajukan" : i.status==="aman" ? "Aman" : "Data kurang"
     }));
     if(rows.length){
       any = true;
