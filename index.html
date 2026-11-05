@@ -818,6 +818,7 @@ function normRecord(r){
   const o = {...r};
   o.divisi = "GA";
   DATE_FIELDS.forEach(k=>{ if(o[k]) o[k] = normDate(o[k]); });
+  normQtyTerima(o);
   return o;
 }
 
@@ -873,8 +874,25 @@ function terimaInfo(r){
   return {kind: diff < 0 ? "kurang" : diff > 0 ? "lebih" : "sesuai", diff};
 }
 const TERIMA_FILTERS = ["Semua","Kurang","Sesuai","Lebih","Belum dicatat"];
+// Daftar penerimaan (bertahap): [{id, tgl, qty, w}]. Data lama yang hanya punya Qty Diterima dibaca sebagai 1 penerimaan ("p0").
+function terimaLog(r){
+  let a = r.penerimaan;
+  if(typeof a === "string"){ try{ a = JSON.parse(a); }catch(e){ a = []; } }
+  if(Array.isArray(a) && a.length) return a.map(p=>({id:String(p.id||""), tgl:String(p.tgl||"").slice(0,10), qty:Math.max(0, Number(p.qty)||0), w:p.w||""}));
+  if(r.qtyDiterima !== "" && r.qtyDiterima != null) return [{id:"p0", tgl:String(r.tglDiterima||"").slice(0,10), qty:Math.max(0, Number(r.qtyDiterima)||0), w:""}];
+  return [];
+}
+const terimaTotal = r => Math.round(terimaLog(r).reduce((t,p)=> t + p.qty, 0) * 100) / 100;
+// Qty Diterima = jumlah semua penerimaan, Tanggal Diterima = penerimaan terakhir (dipakai Laporan, Analisa, Export)
 function normQtyTerima(o){
-  o.qtyDiterima = (o.qtyDiterima === "" || o.qtyDiterima == null) ? "" : Math.max(0, Number(o.qtyDiterima)||0);
+  const log = terimaLog(o);
+  o.penerimaan = log;
+  if(log.length){
+    o.qtyDiterima = terimaTotal(o);
+    o.tglDiterima = log.map(p=>p.tgl).filter(Boolean).sort().pop() || "";
+  }else{
+    o.qtyDiterima = "";
+  }
 }
 function terimaBadge(r){
   if(r.status === "Batal") return "";
@@ -1183,9 +1201,10 @@ function renderFormSections(f, totalId, showTerima=true){
             <label class="field"><span>Status <span class="req">*</span></span><select name="status">${statusOpts}</select></label>
             <label class="field"><span>Tanggal PO</span><input type="date" name="tglPO" value="${f.tglPO}"></label>
             ${showTerima ? `
-            <label class="field"><span>Tanggal Diterima</span><input type="date" name="tglDiterima" value="${f.tglDiterima}"></label>
-            <label class="field"><span>Qty Diterima</span><input type="number" min="0" name="qtyDiterima" value="${escapeHtml(f.qtyDiterima ?? "")}" placeholder="Kosong = belum dicatat">
-              <span class="terima-note"><button type="button" class="link-btn" id="fillTerima">Sama dengan Qty</button><b id="terimaHint"></b></span></label>
+            ${(()=>{ const lock = terimaLog(f).length > 0; const ro = lock ? 'readonly title="Diubah lewat tab Penerimaan (hapus penerimaan lalu input ulang)"' : ""; return `
+            <label class="field"><span>Tanggal Diterima</span><input type="date" name="tglDiterima" value="${f.tglDiterima}" ${ro}></label>
+            <label class="field"><span>Qty Diterima</span><input type="number" min="0" name="qtyDiterima" value="${escapeHtml(f.qtyDiterima ?? "")}" placeholder="Kosong = belum dicatat" ${ro}>
+              <span class="terima-note">${lock ? '<span class="sub-text">Total semua penerimaan · kelola di tab Penerimaan</span>' : '<button type="button" class="link-btn" id="fillTerima">Sama dengan Qty</button>'}<b id="terimaHint"></b></span></label>`; })()}
             ` : ""}
             <label class="field"><span>Keterangan</span><input name="keterangan" value="${escapeHtml(f.keterangan)}"></label>
           </div>
@@ -1580,6 +1599,7 @@ function analyzeItems(){
     getG(r.divisi, nama, r.satuan).rows.push({
       d, qty:Number(r.qty)||0, status:r.status,
       recv: kind==="belum" ? null : (Number(r.qtyDiterima)||0), recvDate: parseYMD(r.tglDiterima),
+      recvs: terimaLog(r).map(p=>({date:parseYMD(p.tgl), qty:p.qty})).filter(p=>p.date),
       harga:Number(r.estimasiHarga)||0, spec:r.spesifikasi||"", supplier:r.supplier||""
     });
   });
@@ -1592,7 +1612,7 @@ function analyzeItems(){
   groups.forEach(g=>{
     g.rows.sort((a,b)=> a.d - b.d);
     g.so.sort((a,b)=> a.m.localeCompare(b.m));
-    const recvList = g.rows.filter(x=>x.recv != null && x.recvDate).map(x=>({date:x.recvDate, qty:x.recv}));
+    const recvList = g.rows.flatMap(x=> x.recvs || []);   // tiap penerimaan (termasuk parsial) dihitung sesuai tanggalnya
     // --- kebutuhan dari pengajuan ---
     const inWin = winStart ? g.rows.filter(x=>x.d >= winStart) : g.rows;
     const count = inWin.length;
@@ -1628,9 +1648,10 @@ function analyzeItems(){
       stokDetail = {dasar:lastSO.fisik, masuk:masukSesudah, keluar:pakai, estimasi};
     }
     // pengajuan yang masih diproses (belum diterima/selesai), dari mana pun dibuatnya (menu Permintaan maupun tombol Ajukan di Analisa)
-    const pending = g.rows.filter(x=> x.recv == null && (x.status==="Pengajuan" || x.status==="Disetujui" || x.status==="Diterima")
+    // (penerimaan parsial: pengajuan tetap berjalan untuk SISA yang belum diterima)
+    const pending = g.rows.filter(x=> (x.recv == null || x.recv < x.qty) && (x.status==="Pengajuan" || x.status==="Disetujui" || x.status==="Diterima")
                                        && (today - x.d)/DAY_MS <= 60);
-    const onOrder = pending.reduce((t,x)=> t + x.qty, 0);
+    const onOrder = pending.reduce((t,x)=> t + (x.recv == null ? x.qty : x.qty - x.recv), 0);
     // --- status ---
     let basis = null, runout = null, daysLeft = null, status = "data";
     if(stock != null && need != null){
@@ -2462,21 +2483,54 @@ function bindOutDel(root){
   });
 }
 
+function bindTerimaDel(root){
+  (root || document).querySelectorAll("[data-terima-del]").forEach(b=> b.onclick = ()=>{
+    const [rid, eid] = b.dataset.terimaDel.split("|");
+    deleteTerima(rid, eid);
+  });
+}
+// Penerimaan yang sudah dicatat tidak bisa diedit, hanya dihapus.
+function deleteTerima(recId, entryId){
+  const r = records.find(x=>x.id === recId); if(!r) return;
+  const log = terimaLog(r), e = log.find(p=>p.id === entryId); if(!e) return;
+  if(!confirm(`Hapus penerimaan ${fmtNum(e.qty)} ${r.satuan} (${formatTgl(e.tgl)}) untuk ${r.namaBarang}?`)) return;
+  const rest = log.filter(p=>p.id !== entryId);
+  const updated = {...r, penerimaan: rest};
+  if(!rest.length){ updated.qtyDiterima = ""; updated.tglDiterima = ""; }
+  const total = rest.reduce((t,p)=> t + p.qty, 0);
+  if((r.status === "Selesai" || r.status === "Diterima") && total < (Number(r.qty)||0)) updated.status = "Disetujui";
+  saveEditOptimistic(updated, null).catch(err=>alert("Gagal menghapus: "+err.message));
+}
+
 function renderTerima(){
   if(terimaTab === "permintaan" && (!form || editingId)){ form = {...emptyForm(), id:idFor()}; editingId = null; proofState = newProofState([]); }   // draft siap sebelum render
   riwCfg.terima = {
-    rows: ()=> records.filter(r=> r.status !== "Batal" && terimaInfo(r).kind !== "belum")
-      .slice().sort((x,y)=> String(y.tglDiterima||"").localeCompare(String(x.tglDiterima||""))),
-    text: r=> r.namaBarang + " " + r.noPengadaan,
+    rows: ()=>{
+      const out = [];
+      records.forEach(r=>{
+        if(r.status === "Batal") return;
+        let cum = 0; const log = terimaLog(r);
+        log.forEach((p,i)=>{ cum += p.qty; out.push({r, p, n:i+1, of:log.length, cum}); });
+      });
+      return out.sort((x,y)=> String(y.p.tgl||"").localeCompare(String(x.p.tgl||"")) || String(y.r.noPengadaan).localeCompare(String(x.r.noPengadaan)) || y.n - x.n);
+    },
+    text: x=> x.r.namaBarang + " " + x.r.noPengadaan,
     ph: "Cari nama item / no. pengadaan...",
-    head: '<tr><th>No. Pengadaan</th><th>Barang</th><th>Qty PO</th><th>Qty Diterima</th><th>Tgl Diterima</th></tr>',
-    row: r=>`<tr>
-          <td class="mono">${escapeHtml(r.noPengadaan)}</td>
-          <td>${escapeHtml(r.namaBarang)}</td>
-          <td>${escapeHtml(r.qty)} ${escapeHtml(r.satuan)}</td>
-          <td>${escapeHtml(r.qtyDiterima)} ${escapeHtml(r.satuan)}${terimaBadge(r)}</td>
-          <td>${formatTgl(r.tglDiterima)}</td></tr>`,
-    empty: '<div class="empty-state">Belum ada penerimaan yang dicatat.</div>'
+    head: '<tr><th>No. Pengadaan</th><th>Barang</th><th>Qty PO</th><th>Qty Diterima</th><th>Total / Sisa</th><th>Tgl Diterima</th><th></th></tr>',
+    row: x=>{
+      const sisa = Math.round(((Number(x.r.qty)||0) - x.cum) * 100) / 100;
+      const badge = sisa > 0 ? `<div class="tm-badge kurang">Sisa ${fmtNum(sisa)}</div>` : sisa < 0 ? `<div class="tm-badge lebih">Lebih ${fmtNum(-sisa)}</div>` : '<div class="tm-badge sesuai">Sesuai</div>';
+      return `<tr>
+          <td class="mono">${escapeHtml(x.r.noPengadaan)}</td>
+          <td>${escapeHtml(x.r.namaBarang)}</td>
+          <td>${escapeHtml(x.r.qty)} ${escapeHtml(x.r.satuan)}</td>
+          <td>${fmtNum(x.p.qty)} ${escapeHtml(x.r.satuan)}${x.of > 1 ? `<div class="sub-text">Penerimaan ke-${x.n}</div>` : ""}</td>
+          <td>${fmtNum(x.cum)} ${escapeHtml(x.r.satuan)}${badge}</td>
+          <td>${formatTgl(x.p.tgl)}</td>
+          <td><button class="so-del" data-terima-del="${escapeHtml(x.r.id)}|${escapeHtml(x.p.id)}" title="Hapus penerimaan ini">🗑</button></td></tr>`;
+    },
+    empty: '<div class="empty-state">Belum ada penerimaan yang dicatat.</div>',
+    after: root=> bindTerimaDel(root)
   };
   const recentHtml = riwBox("terima");
   const penerimaanHtml = `
@@ -2497,13 +2551,16 @@ function renderTerima(){
           <label class="field"><span>Nama Barang</span><input name="tNama" readonly></label>
           <label class="field"><span>Qty PO</span><input name="tQty" readonly></label>
           <label class="field"><span>Satuan</span><input name="tSatuan" readonly></label>
+          <label class="field"><span>Sudah Diterima</span><input name="tTotal" readonly></label>
+          <label class="field"><span>Sisa</span><input name="tSisa" readonly></label>
         </div>
       </div>
+      <div id="tRiwayat"></div>
       <div class="section">
-        <h3>Penerimaan (isi manual)</h3>
+        <h3>Penerimaan Baru</h3>
         <div class="field-grid">
           <label class="field"><span>Qty Diterima <span class="req">*</span></span><input type="number" min="0" name="qtyDiterima" required>
-            <span class="terima-note"><button type="button" class="link-btn" id="tFill">Sama dengan Qty PO</button><b id="tHint"></b></span></label>
+            <span class="terima-note"><button type="button" class="link-btn" id="tFill">Sama dengan Sisa</button><b id="tHint"></b></span></label>
           <label class="field"><span>Tanggal Diterima <span class="req">*</span></span><input type="date" name="tglDiterima" required></label>
         </div>
         <label class="terima-check" style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer">
@@ -2665,19 +2722,35 @@ function bindTerima(){
   if(terimaTab === "permintaan" && (!form || editingId)){ form = {...emptyForm(), id:idFor()}; editingId = null; proofState = newProofState([]); }
   if(terimaTab === "permintaan"){ try{ bindPengadaanForm(); }catch(e){ console.error("Form permintaan error:", e); } }
   if(terimaTab === "pengeluaran"){ try{ bindPengeluaran(); }catch(e){ console.error("Tab pengeluaran error:", e); } }
+  bindTerimaDel();
   const f = document.getElementById("terimaForm");
   if(!f) return;
   const el = n => f.elements[n];
   const msg = document.getElementById("terimaMsg"), hint = document.getElementById("tHint"), fill = document.getElementById("tFill");
   const submitBtn = f.querySelector('button[type=submit]');
   const setManual = on => { el("qtyDiterima").disabled = !on; el("tglDiterima").disabled = !on; el("sudahDiterima").disabled = !on; fill.disabled = !on; submitBtn.disabled = !on; };
-  const updHint = ()=>{
+  const selRec = ()=> records.find(x=>x.id === terimaSelId) || null;
+  const priorQty = ()=>{ const r = selRec(); return r ? terimaTotal(r) : 0; };
+  // Petunjuk: total setelah penerimaan ini dibanding Qty PO. Ceklis "Sudah diterima" otomatis tercentang jika total sudah lengkap.
+  const updHint = (auto)=>{
     hint.className = "";
     if(!terimaSelId || el("qtyDiterima").value === ""){ hint.textContent = ""; return; }
-    const diff = (Number(el("qtyDiterima").value)||0) - (Number(el("tQty").value)||0);
-    if(diff < 0){ hint.textContent = "Kurang " + (-diff); hint.className = "kurang"; }
+    const diff = Math.round((priorQty() + (Number(el("qtyDiterima").value)||0) - (Number(el("tQty").value)||0)) * 100) / 100;
+    if(diff < 0){ hint.textContent = "Masih kurang " + (-diff); hint.className = "kurang"; }
     else if(diff > 0){ hint.textContent = "Lebih " + diff; hint.className = "lebih"; }
     else { hint.textContent = "Sesuai"; hint.className = "sesuai"; }
+    if(auto === true) el("sudahDiterima").checked = diff >= 0;
+  };
+  const renderRiwayat = (r)=>{
+    const box = document.getElementById("tRiwayat"), log = r ? terimaLog(r) : [];
+    if(!log.length){ box.innerHTML = ""; return; }
+    box.innerHTML = `<div class="section"><h3>Penerimaan Tercatat</h3>
+      <div class="table-wrap"><table><thead><tr><th>Ke</th><th>Tanggal</th><th>Qty Diterima</th><th></th></tr></thead><tbody>
+      ${log.map((p,i)=>`<tr><td>${i+1}</td><td>${formatTgl(p.tgl)}</td><td>${fmtNum(p.qty)} ${escapeHtml(r.satuan)}</td>
+        <td><button type="button" class="so-del" data-terima-del="${escapeHtml(r.id)}|${escapeHtml(p.id)}" title="Hapus penerimaan ini">🗑</button></td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="sub-text" style="margin-top:8px">Penerimaan yang sudah tercatat tidak bisa diedit, hanya bisa dihapus. Penerimaan berikutnya otomatis mengisi sisanya.</div></div>`;
+    bindTerimaDel(box);
   };
   const find = v => {
     v = (v||"").trim().toLowerCase();
@@ -2687,21 +2760,23 @@ function bindTerima(){
     const r = find(el("terimaNo").value);
     terimaSelId = r ? r.id : null;
     if(!r){
-      el("tNama").value = el("tQty").value = el("tSatuan").value = "";
+      el("tNama").value = el("tQty").value = el("tSatuan").value = el("tTotal").value = el("tSisa").value = "";
       el("qtyDiterima").value = ""; el("tglDiterima").value = ""; el("sudahDiterima").checked = false;
+      renderRiwayat(null);
       msg.textContent = el("terimaNo").value.trim() ? "No. Pengadaan tidak ditemukan." : "";
       setManual(false); updHint();
       return;
     }
     el("tNama").value = r.namaBarang; el("tQty").value = r.qty; el("tSatuan").value = r.satuan;
-    const had = terimaInfo(r).kind !== "belum";
-    el("qtyDiterima").value = had ? r.qtyDiterima : "";
-    el("tglDiterima").value = r.tglDiterima || todayISO();
+    const prior = terimaTotal(r), sisa = Math.round(((Number(r.qty)||0) - prior) * 100) / 100;
+    el("tTotal").value = prior; el("tSisa").value = Math.max(0, sisa);
+    renderRiwayat(r);
+    // penerimaan ke-2 dst: Qty Diterima otomatis terisi sisanya
+    el("qtyDiterima").value = (prior > 0 && sisa > 0) ? sisa : "";
+    el("tglDiterima").value = todayISO();
     el("sudahDiterima").checked = (r.status === "Selesai" || r.status === "Diterima");
-    msg.textContent = had
-      ? `Sudah tercatat diterima ${r.qtyDiterima} ${r.satuan}${r.tglDiterima ? " pada "+formatTgl(r.tglDiterima) : ""}. Isi total yang sudah diterima; menyimpan akan memperbarui data ini.`
-      : "";
-    setManual(true); updHint();
+    msg.textContent = (prior > 0 && sisa <= 0) ? `Pengadaan ini sudah diterima lengkap (${fmtNum(prior)} dari ${fmtNum(r.qty)} ${r.satuan}). Isi qty hanya jika ada penerimaan tambahan.` : "";
+    setManual(true); updHint(el("qtyDiterima").value !== "");
   };
   el("terimaNo").addEventListener("input", apply);
   el("terimaNo").addEventListener("change", apply);
@@ -2738,8 +2813,8 @@ function bindTerima(){
     const it = e.target.closest(".combo-item");
     if(it){ e.preventDefault(); pick(it.dataset.no); }
   });
-  el("qtyDiterima").addEventListener("input", updHint);
-  fill.onclick = ()=>{ el("qtyDiterima").value = el("tQty").value; updHint(); };
+  el("qtyDiterima").addEventListener("input", ()=> updHint(true));
+  fill.onclick = ()=>{ el("qtyDiterima").value = Math.max(0, (Number(el("tQty").value)||0) - priorQty()); updHint(true); };
   document.getElementById("tReset").onclick = ()=>{ terimaSelId = null; render(); };
   f.onsubmit = (e)=>{
     e.preventDefault();
@@ -2747,7 +2822,9 @@ function bindTerima(){
     if(!r){ msg.textContent = "Pilih No. Pengadaan yang valid dulu."; return; }
     const q = el("qtyDiterima").value, tgl = el("tglDiterima").value;
     if(q === "" || !tgl) return;
-    const updated = {...r, qtyDiterima: Math.max(0, Number(q)||0), tglDiterima: tgl};
+    // Penerimaan baru DITAMBAHKAN ke daftar (yang lama tidak diubah). Qty Diterima total dihitung otomatis.
+    const entry = {id: idFor(), tgl, qty: Math.max(0, Number(q)||0), w: new Date().toISOString()};
+    const updated = {...r, penerimaan: terimaLog(r).concat([entry])};
     // Ceklis "Sudah diterima" -> status di Laporan Permintaan otomatis menjadi "Selesai".
     // (status "Batal" tidak diubah)
     const cek = el("sudahDiterima").checked;
@@ -3202,4 +3279,3 @@ if(onlineMode()){
 </script>
 </body>
 </html>
-
