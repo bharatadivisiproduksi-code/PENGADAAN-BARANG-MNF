@@ -157,6 +157,13 @@
   tr.row-flash td{animation:rowFlash 1.6s ease;}
   @keyframes rowFlash{from{background:rgba(217,138,43,.38);}to{background:transparent;}}
   .load-more{padding:18px;text-align:center;color:var(--muted);font-size:13px;}
+  .combo-wrap{position:relative;}
+  .combo-list{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:40;max-height:300px;overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.35);}
+  .combo-item{padding:9px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--line);}
+  .combo-item:last-child{border-bottom:0;}
+  .combo-item:hover,.combo-item.act{background:var(--paper);}
+  .combo-item small{display:block;margin-top:2px;font-size:11px;color:var(--muted);}
+  .combo-empty{padding:12px;font-size:13px;color:var(--muted);}
   .btn-belum{position:relative;}
   .btn-bubble{position:absolute;top:-9px;right:-9px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#E5484D;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--paper,#0b1020);}
   .modal-belum{max-width:640px;max-height:85vh;overflow-y:auto;overscroll-behavior:contain;text-align:left;padding:22px;}
@@ -2457,7 +2464,6 @@ function bindOutDel(root){
 
 function renderTerima(){
   if(terimaTab === "permintaan" && (!form || editingId)){ form = {...emptyForm(), id:idFor()}; editingId = null; proofState = newProofState([]); }   // draft siap sebelum render
-  const opts = terimaOptions().map(r=>`<option value="${escapeHtml(r.noPengadaan)}">${escapeHtml(r.namaBarang)} — ${escapeHtml(r.qty)} ${escapeHtml(r.satuan)}</option>`).join("");
   riwCfg.terima = {
     rows: ()=> records.filter(r=> r.status !== "Batal" && terimaInfo(r).kind !== "belum")
       .slice().sort((x,y)=> String(y.tglDiterima||"").localeCompare(String(x.tglDiterima||""))),
@@ -2477,10 +2483,12 @@ function renderTerima(){
     <form id="terimaForm" autocomplete="off">
       <div class="section">
         <h3>Pilih Pengadaan</h3>
-        <label class="field"><span>No. Pengadaan <span class="req">*</span></span>
-          <input name="terimaNo" list="terimaList" placeholder="Ketik atau pilih No. Pengadaan" required>
-          <datalist id="terimaList">${opts}</datalist>
-        </label>
+        <div class="combo-wrap">
+          <label class="field"><span>No. Pengadaan <span class="req">*</span></span>
+            <input name="terimaNo" placeholder="Ketik atau pilih No. Pengadaan" required>
+          </label>
+          <div class="combo-list" id="terimaCombo" hidden></div>
+        </div>
         <div class="terima-msg" id="terimaMsg"></div>
       </div>
       <div class="section">
@@ -2697,6 +2705,39 @@ function bindTerima(){
   };
   el("terimaNo").addEventListener("input", apply);
   el("terimaNo").addEventListener("change", apply);
+
+  // Daftar pilihan No. Pengadaan: nama item + tanggal pengajuan (font kecil) di bawahnya
+  const inp = el("terimaNo"), combo = document.getElementById("terimaCombo");
+  let act = -1;
+  const setAct = (n)=>{
+    const its = combo.querySelectorAll(".combo-item");
+    if(!its.length) return;
+    act = (n + its.length) % its.length;
+    its.forEach((x,i)=> x.classList.toggle("act", i === act));
+    its[act].scrollIntoView({block:"nearest"});
+  };
+  const showCombo = ()=>{
+    const q = inp.value.trim().toLowerCase();
+    const list = terimaOptions().filter(r=> !q || (r.noPengadaan + " " + r.namaBarang).toLowerCase().includes(q)).slice(0, 100);
+    combo.innerHTML = list.length
+      ? list.map(r=>`<div class="combo-item" data-no="${escapeHtml(r.noPengadaan)}"><b>${escapeHtml(r.noPengadaan)}</b> — ${escapeHtml(r.namaBarang)} — ${escapeHtml(r.qty)} ${escapeHtml(r.satuan)}<small>Diajukan: ${formatTgl(r.tglPengajuan)}</small></div>`).join("")
+      : '<div class="combo-empty">Tidak ada pengadaan yang cocok.</div>';
+    act = -1; combo.hidden = false;
+  };
+  const pick = (no)=>{ inp.value = no; combo.hidden = true; apply(); };
+  inp.addEventListener("focus", showCombo);
+  inp.addEventListener("input", showCombo);
+  inp.addEventListener("blur", ()=>{ combo.hidden = true; });
+  inp.addEventListener("keydown", (e)=>{
+    if(e.key === "ArrowDown"){ e.preventDefault(); if(combo.hidden) showCombo(); setAct(act + 1); }
+    else if(e.key === "ArrowUp"){ e.preventDefault(); setAct(act - 1); }
+    else if(e.key === "Enter" && !combo.hidden && act >= 0){ e.preventDefault(); const it = combo.querySelectorAll(".combo-item")[act]; if(it) pick(it.dataset.no); }
+    else if(e.key === "Escape"){ combo.hidden = true; }
+  });
+  combo.addEventListener("mousedown", (e)=>{            // mousedown (bukan click) supaya input tidak kehilangan fokus lebih dulu
+    const it = e.target.closest(".combo-item");
+    if(it){ e.preventDefault(); pick(it.dataset.no); }
+  });
   el("qtyDiterima").addEventListener("input", updHint);
   fill.onclick = ()=>{ el("qtyDiterima").value = el("tQty").value; updHint(); };
   document.getElementById("tReset").onclick = ()=>{ terimaSelId = null; render(); };
@@ -3161,3 +3202,4 @@ if(onlineMode()){
 </script>
 </body>
 </html>
+
