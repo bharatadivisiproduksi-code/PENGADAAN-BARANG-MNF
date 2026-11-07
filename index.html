@@ -1642,8 +1642,23 @@ function analyzeItems(){
       const masukSesudah = recvIn(recvList, asOf, today);
       const kel = keluarSetelah(g.divisi, g.nama, asOf);
       const estimasi = kel.n === 0;
-      const pakai = estimasi ? Math.round(need ? need / MONTH_DAYS * daysSince : 0) : kel.qty;
-      stock = Math.max(0, Math.round((lastSO.fisik + masukSesudah - pakai) * 100) / 100);
+      let pakai;
+      if(estimasi){
+        // Perkiraan dihitung berurutan per penerimaan: stok tidak bisa terpakai sebelum barangnya datang,
+        // jadi selama stok 0 tidak ada pemakaian yang dikurangkan.
+        const rate = need ? need / MONTH_DAYS : 0;
+        let level = lastSO.fisik, t = asOf;
+        recvList.filter(x=> x.date > asOf && x.date <= today).sort((a,b)=> a.date - b.date).forEach(x=>{
+          level = Math.max(0, level - rate * Math.max(0, dayDiff(t, x.date)));
+          level += x.qty; t = x.date;
+        });
+        level = Math.max(0, level - rate * Math.max(0, dayDiff(t, today)));
+        stock = Math.round(level);
+        pakai = Math.max(0, Math.round((lastSO.fisik + masukSesudah - stock) * 100) / 100);
+      }else{
+        pakai = kel.qty;
+        stock = Math.max(0, Math.round((lastSO.fisik + masukSesudah - pakai) * 100) / 100);
+      }
       stokDetail = {dasar:lastSO.fisik, masuk:masukSesudah, keluar:pakai, estimasi};
     }
     // pengajuan yang masih diproses (belum diterima/selesai), dari mana pun dibuatnya (menu Permintaan maupun tombol Ajukan di Analisa)
