@@ -403,6 +403,10 @@
   .stk-info{flex:1;min-width:0;font-size:13px;}
   .stk-foot{padding-top:10px;border-top:1px solid var(--line);}
   @media (max-width:700px){.so-new-row{grid-template-columns:1fr 1fr;}}
+  .only-baik{display:none;}
+  form:has(select[name="jenis"] option[value="Perbaikan"]:checked) .only-beli{display:none !important;}
+  form:has(select[name="jenis"] option[value="Perbaikan"]:checked) .only-baik{display:inline !important;}
+  .jenis-chip{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;margin-left:6px;border-radius:999px;background:#8E5CD922;color:#8E5CD9;vertical-align:middle;}
 </style>
 </head>
 <body>
@@ -521,9 +525,13 @@
 
 <script>
 // ---------- Constants ----------
-const STATUS_LIST = ["Pengajuan","Disetujui","Diterima","Selesai","Batal"];
+const STATUS_LIST = ["Pengajuan","Disetujui","Diterima","Dikerjakan","Selesai","Batal"];   // gabungan (filter & hitungan)
+const STATUS_BELI = ["Pengajuan","Disetujui","Diterima","Selesai","Batal"];
+const STATUS_BAIK = ["Pengajuan","Dikerjakan","Selesai","Batal"];
+const statusListFor = (jenis)=> jenis === "Perbaikan" ? STATUS_BAIK : STATUS_BELI;
+const JENIS_LIST = ["Pembelian","Perbaikan"];
 const STATUS_COLORS = {
-  "Pengajuan":"#7A8699","Disetujui":"#2F6FE4","Diterima":"#E09A1A","Selesai":"#1FA36B","Batal":"#D7263D"
+  "Pengajuan":"#7A8699","Disetujui":"#2F6FE4","Diterima":"#E09A1A","Dikerjakan":"#8E5CD9","Selesai":"#1FA36B","Batal":"#D7263D"
 };
 const DIVISI_LIST = ["GA"];
 const SATUAN_LIST = ["Pcs","Unit","Box","Botol","Kg","Liter","Meter","Set","Dus"];
@@ -593,9 +601,10 @@ async function loadRecordsOnline(silent=false){
     const data = await apiRequest({action:"list"});
     if(silent && pendingWrites > 0) return;   // ada simpanan yang belum selesai: jangan timpa
     const before = JSON.stringify(records) + JSON.stringify(soRows);
+    const abaikanChanged = await syncAbaikan();
     records = Array.isArray(data.records) ? data.records.map(normRecord) : [];
     if(Array.isArray(data.so)) soRows = data.so.map(normSo);
-    const changed = before !== JSON.stringify(records) + JSON.stringify(soRows);
+    const changed = abaikanChanged || before !== JSON.stringify(records) + JSON.stringify(soRows);
     showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
     // Jangan render ulang kalau data tidak berubah (sinkron otomatis) atau user sedang mengisi form.
     if(view !== "form" && view !== "terima" && view !== "opname"){ if(changed || !silent || !document.getElementById("mainContent").children.length) render(); }
@@ -729,6 +738,7 @@ let form = null;
 let search = "";
 let filterDivisi = "Semua";
 let filterStatus = "Semua";
+let filterJenis = "Semua";
 let filterTerima = "Semua";
 let analysisPeriod = 12;   // bulan yang dihitung; 0 = semua data
 let remindLead = 14;       // ingatkan N hari sebelum perkiraan habis
@@ -818,8 +828,19 @@ function normRecord(r){
   const o = {...r};
   o.divisi = "GA";
   DATE_FIELDS.forEach(k=>{ if(o[k]) o[k] = normDate(o[k]); });
-  normQtyTerima(o);
+  applyJenis(o);
   return o;
+}
+// Jenis permintaan: Pembelian (default, data lama) atau Perbaikan (tanpa qty/penerimaan, tidak masuk analisa stok)
+function applyJenis(o){
+  o.jenis = o.jenis === "Perbaikan" ? "Perbaikan" : "Pembelian";
+  if(o.jenis === "Perbaikan"){
+    o.qty = 1; o.satuan = "Unit"; o.qtyDiterima = ""; o.penerimaan = "";
+    if(!STATUS_BAIK.includes(o.status)) o.status = o.status === "Disetujui" ? "Dikerjakan" : "Pengajuan";
+  }else{
+    if(o.status === "Dikerjakan") o.status = "Disetujui";
+    normQtyTerima(o);
+  }
 }
 
 function idFor(){ return Date.now()+"-"+Math.random().toString(36).slice(2,8); }
@@ -858,7 +879,7 @@ function monthIndexFromISO(iso){
 function emptyForm(){
   return {
     id:"", noPengadaan:"", tglPengajuan: todayISO(), divisi:"GA", departemen:"Produksi",
-    keperluan:"", namaBarang:"", spesifikasi:"", qty:"", satuan:"Pcs", estimasiHarga:"",
+    jenis:"Pembelian", keperluan:"", namaBarang:"", spesifikasi:"", qty:"", satuan:"Pcs", estimasiHarga:"",
     supplier:"", tglPO:"", tglDiterima:"", status:"Pengajuan", keterangan:"", qtyDiterima:""
   };
 }
@@ -903,7 +924,7 @@ function terimaBadge(r){
   return "";
 }
 function countKurang(){
-  return records.filter(r=> r.status !== "Batal" && terimaInfo(r).kind === "kurang").length;
+  return records.filter(r=> r.status !== "Batal" && r.jenis !== "Perbaikan" && terimaInfo(r).kind === "kurang").length;
 }
 
 // ---------- Derived ----------
@@ -934,8 +955,9 @@ function computeFiltered(){
   return records.filter(r=>{
     if(filterDivisi!=="Semua" && r.divisi!==filterDivisi) return false;
     if(filterStatus!=="Semua" && r.status!==filterStatus) return false;
+    if(filterJenis!=="Semua" && (r.jenis||"Pembelian")!==filterJenis) return false;
     if(filterTerima!=="Semua"){
-      if(r.status === "Batal") return false;      // pengadaan batal tidak dihitung dalam pengecekan penerimaan
+      if(r.status === "Batal" || r.jenis === "Perbaikan") return false;      // pengadaan batal tidak dihitung dalam pengecekan penerimaan
       const k = terimaInfo(r).kind;
       const want = {"Kurang":"kurang","Sesuai":"sesuai","Lebih":"lebih","Belum dicatat":"belum"}[filterTerima];
       if(k !== want) return false;
@@ -1105,7 +1127,8 @@ function renderListBody(filtered){
           const totalPO = (Number(r.qty)||0)*harga;                       // Total Pengadaan = Qty PO x harga satuan
           const ti = terimaInfo(r);
           const totalReal = ti.kind==="belum" ? null : (Number(r.qtyDiterima)||0)*harga;   // Total Realisasi = Qty Diterima x harga satuan
-          const statusOpts = STATUS_LIST.map(s=>`<option value="${s}" ${r.status===s?"selected":""}>${s}</option>`).join("");
+          const isBaik = r.jenis === "Perbaikan";
+          const statusOpts = statusListFor(r.jenis).map(s=>`<option value="${s}" ${r.status===s?"selected":""}>${s}</option>`).join("");
           const nb = (r.bukti||[]).length;
           const proofBtn = nb ? `<button data-proof="${r.id}" class="proof-btn" title="Lihat bukti (${nb} foto)">📎<span>${nb}</span></button>` : "";
           const actionsHtml = `<div class="row-actions">
@@ -1117,9 +1140,9 @@ function renderListBody(filtered){
             <td class="mono">${escapeHtml(r.noPengadaan)}</td>
             <td>${formatTgl(r.tglPengajuan)}</td>
             <td>${escapeHtml(r.divisi)}</td>
-            <td>${escapeHtml(r.namaBarang)}<div class="sub-text">${escapeHtml(r.departemen)}</div></td>
-            <td>${r.qty} ${escapeHtml(r.satuan)}</td>
-            <td>${ti.kind==="belum" ? '<span class="muted-dash">–</span>' : (r.qtyDiterima+" "+escapeHtml(r.satuan))}${terimaBadge(r)}</td>
+            <td>${escapeHtml(r.namaBarang)}${isBaik ? '<span class="jenis-chip">🔧 Perbaikan</span>' : ""}<div class="sub-text">${escapeHtml(r.departemen)}</div></td>
+            <td>${isBaik ? '<span class="muted-dash">–</span>' : r.qty+" "+escapeHtml(r.satuan)}</td>
+            <td>${(isBaik || ti.kind==="belum") ? '<span class="muted-dash">–</span>' : (r.qtyDiterima+" "+escapeHtml(r.satuan))}${isBaik ? "" : terimaBadge(r)}</td>
             <td>${formatRupiah(totalPO)}</td>
             <td>${totalReal==null ? '<span class="muted-dash">–</span>' : formatRupiah(totalReal)}</td>
             <td><select class="status-select" data-status-change="${r.id}" style="color:${STATUS_COLORS[r.status]}">${statusOpts}</select></td>
@@ -1157,6 +1180,7 @@ function renderList(){
     <div class="filters">
       <div class="search-box">🔍 <input id="searchInput" placeholder="Cari barang, no. pengadaan, supplier..." value="${escapeHtml(search)}"></div>
       <select class="filter-select" id="filterDivisi">${optDivisi}</select>
+      <select class="filter-select" id="filterJenis" title="Jenis permintaan">${["Semua",...JENIS_LIST].map(s=>`<option ${filterJenis===s?"selected":""}>${s}</option>`).join("")}</select>
       <select class="filter-select" id="filterStatus">${optStatus}</select>
       <select class="filter-select" id="filterTerima" title="Filter penerimaan">${optTerima}</select>
       <select class="filter-select" id="filterBulan">${optBulan}</select>
@@ -1170,11 +1194,14 @@ function renderFormSections(f, totalId, showTerima=true){
   const divisiOpts = DIVISI_LIST.map(d=>`<option ${f.divisi===d?"selected":""}>${d}</option>`).join("");
   const deptOpts = DEPT_LIST.map(d=>`<option ${f.departemen===d?"selected":""}>${d}</option>`).join("");
   const satuanOpts = SATUAN_LIST.map(s=>`<option ${f.satuan===s?"selected":""}>${s}</option>`).join("");
-  const statusOpts = STATUS_LIST.map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("");
+  const statusOpts = statusListFor(f.jenis).map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("");
+  const jenisOpts = JENIS_LIST.map(s=>`<option ${f.jenis===s?"selected":""}>${s}</option>`).join("");
+  const LB = (a,b)=>`<span class="only-beli">${a}</span><span class="only-baik">${b}</span>`;
   return `
         <div class="section">
           <h3>Informasi Umum</h3>
           <div class="field-grid">
+            <label class="field"><span>Jenis Permintaan</span><select name="jenis" onchange="(function(sel){const st=sel.form.elements.status,L=sel.value==='Perbaikan'?['Pengajuan','Dikerjakan','Selesai','Batal']:['Pengajuan','Disetujui','Diterima','Selesai','Batal'],cur=st.value;st.innerHTML=L.map(x=>'<option>'+x+'</option>').join('');st.value=L.includes(cur)?cur:'Pengajuan';})(this)">${jenisOpts}</select></label>
             <label class="field"><span>No. Pengadaan <span class="req">*</span></span><input name="noPengadaan" value="${escapeHtml(f.noPengadaan)}" placeholder="mis. PGD-001" required></label>
             <label class="field"><span>Tanggal Pengajuan <span class="req">*</span></span><input type="date" name="tglPengajuan" value="${f.tglPengajuan}" required></label>
             <label class="field"><span>Divisi Pengadaan <span class="req">*</span></span><select name="divisi">${divisiOpts}</select></label>
@@ -1183,26 +1210,26 @@ function renderFormSections(f, totalId, showTerima=true){
           </div>
         </div>
         <div class="section">
-          <h3>Detail Barang</h3>
+          <h3>${LB("Detail Barang","Detail Perbaikan")}</h3>
           <div class="field-grid">
-            <label class="field"><span>Nama Barang <span class="req">*</span></span><input name="namaBarang" value="${escapeHtml(f.namaBarang)}" required></label>
-            <label class="field"><span>Spesifikasi</span><input name="spesifikasi" value="${escapeHtml(f.spesifikasi)}"></label>
-            <label class="field"><span>Qty <span class="req">*</span></span><input type="number" min="0" name="qty" value="${escapeHtml(f.qty)}" required></label>
-            <label class="field"><span>Satuan</span><select name="satuan">${satuanOpts}</select></label>
-            <label class="field"><span>Estimasi Harga (per satuan)</span><input type="number" min="0" name="estimasiHarga" value="${escapeHtml(f.estimasiHarga)}"></label>
-            <label class="field"><span>Estimasi Total</span><input id="${totalId}" readonly value="${formatRupiah(total)}"></label>
+            <label class="field"><span>${LB("Nama Barang","Barang / Aset yang Diperbaiki")} <span class="req">*</span></span><input name="namaBarang" value="${escapeHtml(f.namaBarang)}" required></label>
+            <label class="field"><span>${LB("Spesifikasi","Detail Kerusakan")}</span><input name="spesifikasi" value="${escapeHtml(f.spesifikasi)}"></label>
+            <label class="field only-beli"><span>Qty <span class="req">*</span></span><input type="number" min="0" name="qty" value="${escapeHtml(f.qty)}" required></label>
+            <label class="field only-beli"><span>Satuan</span><select name="satuan">${satuanOpts}</select></label>
+            <label class="field"><span>${LB("Estimasi Harga (per satuan)","Estimasi Biaya")}</span><input type="number" min="0" name="estimasiHarga" value="${escapeHtml(f.estimasiHarga)}"></label>
+            <label class="field only-beli"><span>Estimasi Total</span><input id="${totalId}" readonly value="${formatRupiah(total)}"></label>
           </div>
         </div>
         <div class="section">
-          <h3>Supplier, Tanggal &amp; Status</h3>
+          <h3>${LB("Supplier, Tanggal &amp; Status","Vendor, Tanggal &amp; Status")}</h3>
           <div class="field-grid">
-            <label class="field"><span>Supplier</span><input name="supplier" value="${escapeHtml(f.supplier)}" placeholder="-"></label>
+            <label class="field"><span>${LB("Supplier","Vendor / Teknisi")}</span><input name="supplier" value="${escapeHtml(f.supplier)}" placeholder="-"></label>
             <label class="field"><span>Status <span class="req">*</span></span><select name="status">${statusOpts}</select></label>
-            <label class="field"><span>Tanggal PO</span><input type="date" name="tglPO" value="${f.tglPO}"></label>
+            <label class="field"><span>${LB("Tanggal PO","Tanggal Mulai Dikerjakan")}</span><input type="date" name="tglPO" value="${f.tglPO}"></label>
             ${showTerima ? `
             ${(()=>{ const lock = terimaLog(f).length > 0; const ro = lock ? 'readonly title="Diubah lewat tab Penerimaan (hapus penerimaan lalu input ulang)"' : ""; return `
-            <label class="field"><span>Tanggal Diterima</span><input type="date" name="tglDiterima" value="${f.tglDiterima}" ${ro}></label>
-            <label class="field"><span>Qty Diterima</span><input type="number" min="0" name="qtyDiterima" value="${escapeHtml(f.qtyDiterima ?? "")}" placeholder="Kosong = belum dicatat" ${ro}>
+            <label class="field"><span>${LB("Tanggal Diterima","Tanggal Selesai")}</span><input type="date" name="tglDiterima" value="${f.tglDiterima}" ${ro}></label>
+            <label class="field only-beli"><span>Qty Diterima</span><input type="number" min="0" name="qtyDiterima" value="${escapeHtml(f.qtyDiterima ?? "")}" placeholder="Kosong = belum dicatat" ${ro}>
               <span class="terima-note">${lock ? '<span class="sub-text">Total semua penerimaan · kelola di tab Penerimaan</span>' : '<button type="button" class="link-btn" id="fillTerima">Sama dengan Qty</button>'}<b id="terimaHint"></b></span></label>`; })()}
             ` : ""}
             <label class="field"><span>Keterangan</span><input name="keterangan" value="${escapeHtml(f.keterangan)}"></label>
@@ -1263,6 +1290,7 @@ function exportToExcel(){
     "Spesifikasi": r.spesifikasi,
     "Qty PO": Number(r.qty)||0,
     "Satuan": r.satuan,
+    "Jenis": r.jenis || "Pembelian",
     "Qty Diterima": (r.qtyDiterima === "" || r.qtyDiterima == null) ? "" : Number(r.qtyDiterima),
     "Selisih Penerimaan": (r.qtyDiterima === "" || r.qtyDiterima == null) ? "" : (Number(r.qtyDiterima) - (Number(r.qty)||0)),
     "Estimasi Harga Satuan": Number(r.estimasiHarga)||0,
@@ -1372,6 +1400,8 @@ function attachHandlers(){
     if(fd) fd.onchange = (e)=>{ filterDivisi = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const ft = document.getElementById("filterTerima");
     if(ft) ft.onchange = (e)=>{ filterTerima = e.target.value; visibleCount = PAGE_SIZE; render(); };
+    const fj = document.getElementById("filterJenis");
+    if(fj) fj.onchange = (e)=>{ filterJenis = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const fs = document.getElementById("filterStatus");
     if(fs) fs.onchange = (e)=>{ filterStatus = e.target.value; visibleCount = PAGE_SIZE; render(); };
     const fb = document.getElementById("filterBulan");
@@ -1415,10 +1445,10 @@ function bindPengadaanForm(){
       const fd = new FormData(f);
       const updated = {...form};
       for(const [k,v] of fd.entries()) updated[k]=v;
-      if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || !updated.qty || !updated.tglPengajuan) return;
+      if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || (updated.jenis !== "Perbaikan" && !updated.qty) || !updated.tglPengajuan) return;
       updated.qty = Number(updated.qty)||0;
       updated.estimasiHarga = Number(updated.estimasiHarga)||0;
-      normQtyTerima(updated);
+      applyJenis(updated);
 
       const st = proofState;
       saveStart(true);      // layar terkunci + "SEDANG MENYIMPAN..." selama menunggu server
@@ -1506,14 +1536,71 @@ function normSo(o){
 // dan Hasil SO menjadi Stok Awal bulan berikutnya.
 const soPakai = r => (Number(r.stokAwal)||0) + (Number(r.barangMasuk)||0) - (Number(r.hasilSO)||0);
 // ---------- Fitur Abaikan (Analisa Kebutuhan) ----------
-const ABAIKAN_KEY = "pengadaan_abaikan_v1";
+const ABAIKAN_KEY = "pengadaan_abaikan_v2";
+const ABAIKAN_OLD_KEY = "pengadaan_abaikan_v1";
 let abaikanSet = new Set();
+let abaikanMonth = "";
+const currentMonthKey = ()=>{ const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); };
+// Abaikan hanya berlaku di bulan saat item diabaikan. Ganti bulan -> daftar di-reset, notif pengajuan muncul lagi.
 function loadAbaikan(){
-  try{ abaikanSet = new Set(JSON.parse(localStorage.getItem(ABAIKAN_KEY) || "[]")); }
-  catch(e){ abaikanSet = new Set(); }
+  const now = currentMonthKey();
+  abaikanSet = new Set(); abaikanMonth = now;
+  try{
+    const raw = localStorage.getItem(ABAIKAN_KEY);
+    if(raw){
+      const o = JSON.parse(raw);
+      if(o && o.month === now && Array.isArray(o.keys)) abaikanSet = new Set(o.keys);
+    }else{
+      // migrasi dari versi lama (tanpa bulan): dianggap diabaikan di bulan ini
+      const old = JSON.parse(localStorage.getItem(ABAIKAN_OLD_KEY) || "[]");
+      if(Array.isArray(old) && old.length) abaikanSet = new Set(old);
+      localStorage.removeItem(ABAIKAN_OLD_KEY);
+    }
+  }catch(e){ abaikanSet = new Set(); }
+  persistAbaikan();
+}
+// dipanggil tiap analisa: kalau bulan sudah berganti (aplikasi dibiarkan terbuka), daftar otomatis di-reset
+function checkAbaikanMonth(){
+  if(abaikanMonth !== currentMonthKey()) loadAbaikan();
+}
+// ---- Sinkron antar perangkat via Apps Script (aksi: abaikanList / abaikanAdd / abaikanRemove) ----
+// Lokal dulu (cepat), lalu dikirim ke server. Kalau server belum diperbarui / offline, tetap jalan lokal.
+let pendingAbaikan = 0;
+const ABAIKAN_PUSHED_KEY = "pengadaan_abaikan_pushed_v1";
+async function abaikanPush(op, key){
+  if(!onlineMode()) return;
+  pendingAbaikan++;
+  try{ await apiRequest({action:"abaikan" + op, month:abaikanMonth || currentMonthKey(), key}); }
+  catch(e){ console.warn("Sinkron abaikan gagal (aksi Apps Script belum dipasang / offline):", e.message); }
+  finally{ pendingAbaikan--; }
+}
+// Ambil daftar dari server -> jadi acuan. Return true kalau daftar berubah.
+async function syncAbaikan(){
+  if(!onlineMode() || pendingAbaikan > 0) return false;
+  checkAbaikanMonth();
+  try{
+    const data = await apiRequest({action:"abaikanList", month:abaikanMonth});
+    if(pendingAbaikan > 0 || !Array.isArray(data.keys)) return false;
+    const server = new Set(data.keys);
+    // sekali saja: kirim abaikan lama yang hanya ada di perangkat ini
+    let pushedFlag = "1";
+    try{ pushedFlag = localStorage.getItem(ABAIKAN_PUSHED_KEY); }catch(e){}
+    if(!pushedFlag){
+      const onlyLocal = [...abaikanSet].filter(k=> !server.has(k));
+      for(const k of onlyLocal){ await abaikanPush("Add", k); server.add(k); }
+      try{ localStorage.setItem(ABAIKAN_PUSHED_KEY, "1"); }catch(e){}
+    }
+    const before = [...abaikanSet].sort().join("\n");
+    abaikanSet = server;
+    persistAbaikan();
+    return before !== [...abaikanSet].sort().join("\n");
+  }catch(e){
+    console.warn("Gagal ambil daftar abaikan:", e.message);
+    return false;
+  }
 }
 function persistAbaikan(){
-  try{ localStorage.setItem(ABAIKAN_KEY, JSON.stringify([...abaikanSet])); }
+  try{ localStorage.setItem(ABAIKAN_KEY, JSON.stringify({month:abaikanMonth || currentMonthKey(), keys:[...abaikanSet]})); }
   catch(e){}
 }
 
@@ -1579,6 +1666,7 @@ const recvIn = (list, from, to)=> list.reduce((t,x)=> (x.date > from && x.date <
 const recvInMonth = (list, m)=> list.reduce((t,x)=> (x.date >= monthStart(m) && x.date <= monthEnd(m)) ? t + x.qty : t, 0);
 
 function analyzeItems(){
+  checkAbaikanMonth();
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const winStart = analysisPeriod > 0 ? new Date(now.getFullYear(), now.getMonth() - (analysisPeriod - 1), 1) : null;
@@ -1591,7 +1679,7 @@ function analyzeItems(){
     return g;
   };
   records.forEach(r=>{
-    if(r.status === "Batal") return;
+    if(r.status === "Batal" || r.jenis === "Perbaikan") return;   // perbaikan tidak masuk analisa kebutuhan
     const d = parseYMD(r.tglPengajuan), nama = String(r.namaBarang||"").trim();
     if(!d || !nama) return;
     const kind = terimaInfo(r).kind;
@@ -1722,9 +1810,11 @@ function bindAjukan(){
   });
   document.querySelectorAll("[data-abaikan]").forEach(b=> b.onclick = ()=>{
     const key = b.dataset.abaikan;
+    if(!confirm("Abaikan item ini?\n\nItem tidak akan muncul di pengingat selama bulan ini. Mulai bulan depan notif pengajuan/abaikan akan muncul lagi. Bisa dibatalkan kapan saja lewat tombol \"Batalkan\".")) return;
     if(!abaikanSet.has(key)){
       abaikanSet.add(key);
       persistAbaikan();
+      abaikanPush("Add", key);
     }
     render();
     updateNavBadge();
@@ -1732,6 +1822,7 @@ function bindAjukan(){
   document.querySelectorAll("[data-unabaikan]").forEach(b=> b.onclick = ()=>{
     abaikanSet.delete(b.dataset.unabaikan);
     persistAbaikan();
+    abaikanPush("Remove", b.dataset.unabaikan);
     render();
     updateNavBadge();
   });
@@ -1788,7 +1879,7 @@ function renderRemindPanel(){
       </div>
       ${rmBadge(it)}
       <button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(it.key)}">Ajukan</button>
-      <button type="button" class="btn-outline rm-btn abaikan-btn" data-abaikan="${escapeHtml(it.key)}" title="Sembunyikan item ini dari pengingat">Abaikan</button>
+      <button type="button" class="btn-outline rm-btn abaikan-btn" data-abaikan="${escapeHtml(it.key)}" title="Sembunyikan dari pengingat sampai akhir bulan ini">Abaikan</button>
     </div>`).join("");
   const body = list.length === 0
     ? `<div class="empty-state">Belum ada item yang perlu diajukan ulang. Item dihitung setelah ada data Stock Opname (SO), atau minimal 2 pengajuan.</div>`
@@ -1848,7 +1939,7 @@ function renderStockPanel(){
     const nilai = priced.reduce((t,i)=> t + i.stock * i.harga, 0);
     const nilaiTxt = !counted.length ? "" : !priced.length ? " · nilai stok belum bisa dihitung (belum ada harga)"
       : " · nilai stok ± " + formatRupiah(Math.round(nilai)) + (priced.length < counted.length ? " (" + priced.length + " item berharga)" : "");
-    const low = counted.filter(i=> i.status==="terlambat" || i.status==="segera").length;
+    const low = counted.filter(i=> (i.status==="terlambat" || i.status==="segera") && !abaikanSet.has(i.key)).length;
     return `<div class="stk-row">
       <div class="stk-div">${escapeHtml(div)}</div>
       <div class="stk-info"><div>SO terakhir: <b>${lastDate ? fmtBulan(lastDate) : "belum ada"}</b></div>
@@ -1870,7 +1961,7 @@ function renderAnalisa(){
   const periodOpts = [[3,"3 bulan terakhir"],[6,"6 bulan terakhir"],[12,"12 bulan terakhir"],[0,"Semua data"]]
     .map(([v,t])=>`<option value="${v}" ${analysisPeriod===v?"selected":""}>${t}</option>`).join("");
   const leadOpts = [7,14,30].map(d=>`<option value="${d}" ${remindLead===d?"selected":""}>Ingatkan ${d} hari sebelum habis</option>`).join("");
-  const nRemind = items.filter(i=>i.status==="terlambat"||i.status==="segera").length;
+  const nRemind = items.filter(i=>(i.status==="terlambat"||i.status==="segera") && !abaikanSet.has(i.key)).length;
 
   const section = (div)=>{
     const shown = analisaShow[div] || PAGE_SIZE;
@@ -1891,8 +1982,8 @@ function renderAnalisa(){
           <td>${i.runout ? formatTgl(toYMD(i.runout)) : '<span class="muted-dash">–</span>'}</td>
           <td>${rmBadge(i)}</td>
           <td>${(()=>{ const isIgnored = abaikanSet.has(i.key);
-            if(isIgnored) return `<span class="rm-badge data" title="Item ini diabaikan dan tidak muncul di pengingat">Diabaikan</span> <button type="button" class="btn-outline rm-btn" data-unabaikan="${escapeHtml(i.key)}" title="Tampilkan lagi di pengingat">Batalkan</button>`;
-            if(i.status==="terlambat"||i.status==="segera") return `<button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button> <button type="button" class="btn-outline rm-btn abaikan-btn" data-abaikan="${escapeHtml(i.key)}" title="Sembunyikan item ini dari pengingat">Abaikan</button>`;
+            if(isIgnored) return `<span class="rm-badge data" title="Diabaikan sampai akhir bulan ini. Bulan depan notif muncul lagi.">Diabaikan</span> <button type="button" class="btn-outline rm-btn" data-unabaikan="${escapeHtml(i.key)}" title="Tampilkan lagi di pengingat">Batalkan</button> <button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button>`;
+            if(i.status==="terlambat"||i.status==="segera") return `<button type="button" class="btn-outline rm-btn" data-ajukan="${escapeHtml(i.key)}">Ajukan</button> <button type="button" class="btn-outline rm-btn abaikan-btn" data-abaikan="${escapeHtml(i.key)}" title="Sembunyikan dari pengingat sampai akhir bulan ini">Abaikan</button>`;
             return ""; })()}</td>
         </tr>`).join("")}
       </tbody></table>`;
@@ -1982,7 +2073,7 @@ function exportAnalisa(){
       "SO Terakhir": i.lastSO ? fmtBulan(i.lastSO.m) : "",
       "Pengajuan Terakhir": i.last ? formatTgl(toYMD(i.last.d)) : "", "Qty Terakhir": i.last ? i.lastQty : "",
       "Perkiraan Habis": i.runout ? formatTgl(toYMD(i.runout)) : "",
-      "Status": i.status==="terlambat" ? (i.basis==="stok" ? "Stok habis" : "Terlambat "+(-i.daysLeft)+" hari") : i.status==="segera" ? i.daysLeft+" hari lagi (segera ajukan)" : i.status==="diajukan" ? "Sudah diajukan" : i.status==="aman" ? "Aman" : "Data kurang"
+      "Status": abaikanSet.has(i.key) ? "Diabaikan" : i.status==="terlambat" ? (i.basis==="stok" ? "Stok habis" : "Terlambat "+(-i.daysLeft)+" hari") : i.status==="segera" ? i.daysLeft+" hari lagi (segera ajukan)" : i.status==="diajukan" ? "Sudah diajukan" : i.status==="aman" ? "Aman" : "Data kurang"
     }));
     if(rows.length){
       any = true;
@@ -2416,7 +2507,7 @@ function closeSoHistory(){
 let terimaSelId = null;
 let terimaTab = "permintaan";   // "permintaan" | "penerimaan" | "pengeluaran"
 if(["permintaan","penerimaan","pengeluaran"].includes(globalThis.__tabPref)) terimaTab = globalThis.__tabPref;
-const terimaOptions = ()=> records.filter(r=>r.status !== "Batal").slice().reverse();   // terbaru di atas
+const terimaOptions = ()=> records.filter(r=>r.status !== "Batal" && r.jenis !== "Perbaikan").slice().reverse();   // terbaru di atas
 
 // ---------- Tabel riwayat: cari item + halaman (10 data / halaman) ----------
 const RIW_SIZE = 10;
@@ -3105,10 +3196,10 @@ document.getElementById("editForm").addEventListener("submit", (e)=>{
   const fd = new FormData(e.target);
   const updated = {...editFormData};
   for(const [k,v] of fd.entries()) updated[k]=v;
-  if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || !updated.qty || !updated.tglPengajuan) return;
+  if(!updated.noPengadaan.trim() || !updated.namaBarang.trim() || (updated.jenis !== "Perbaikan" && !updated.qty) || !updated.tglPengajuan) return;
   updated.qty = Number(updated.qty)||0;
   updated.estimasiHarga = Number(updated.estimasiHarga)||0;
-  normQtyTerima(updated);
+  applyJenis(updated);
   const st = proofState;
   if(st) updated.bukti = st.existing.map(x=>({...x}));    // foto yang dihapus langsung hilang dari tampilan
   closeEditModal();
