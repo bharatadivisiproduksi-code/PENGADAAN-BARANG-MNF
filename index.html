@@ -412,13 +412,6 @@
   .page-header:not(.list-band){margin:-32px -32px 18px;padding:24px 32px 12px;background:var(--paper);}
   .tab-row{position:sticky;top:var(--hdr-h,0px);z-index:25;background:var(--paper);margin:0 -32px 18px;padding:0 32px;}
   .filters{top:var(--hdr-h,0px);}
-  /* ===== Fitur cari item HOLD: search bar tetap terlihat saat halaman di-scroll ===== */
-  .analisa-controls{position:sticky;top:var(--hdr-h,0px);z-index:24;background:var(--paper-blur);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);margin:0 -32px 14px;padding:10px 32px 12px;}
-  .riw-bar{position:sticky;top:var(--hdr-h,0px);z-index:14;background:var(--paper-blur);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);margin:0 -8px 10px;padding:8px;border-radius:8px 8px 0 0;}
-  /* di dalam modal: sticky terhadap scroll modal sendiri */
-  .modal-overlay .riw-bar{top:0;}
-  /* di tab Penerimaan / Pengeluaran: di bawah sticky page-header + tab-row */
-  .tab-row ~ form .riw-bar{top:calc(var(--hdr-h,0px) + 48px);}
 </style>
 </head>
 <body>
@@ -840,6 +833,7 @@ function normRecord(r){
   const o = {...r};
   o.divisi = "GA";
   DATE_FIELDS.forEach(k=>{ if(o[k]) o[k] = normDate(o[k]); });
+  o.noPengadaan = String(o.noPengadaan == null ? "" : o.noPengadaan).trim();   // nomor angka dari Sheets -> teks
   applyJenis(o);
   return o;
 }
@@ -2639,7 +2633,7 @@ let terimaSelId = null;
 let terimaTab = "permintaan";   // "permintaan" | "penerimaan" | "pengeluaran"
 if(["permintaan","penerimaan","pengeluaran"].includes(globalThis.__tabPref)) terimaTab = globalThis.__tabPref;
 const isMultiNo = r=> records.filter(x=>x.noPengadaan===r.noPengadaan && x.status!=="Batal").length > 1;
-const terimaLabel = r=> r.noPengadaan;
+const terimaLabel = r=> String(r.noPengadaan == null ? "" : r.noPengadaan);
 const terimaOptions = ()=> records.filter(r=>r.status !== "Batal" && r.jenis !== "Perbaikan").slice().reverse();   // terbaru di atas
 
 // ---------- Tabel riwayat: cari item + halaman (10 data / halaman) ----------
