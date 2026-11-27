@@ -613,7 +613,10 @@ async function loadRecordsOnline(silent=false){
     showSyncStatus("✓ Tersinkron • " + new Date().toLocaleTimeString("id-ID"));
     // Jangan render ulang kalau data tidak berubah (sinkron otomatis) atau user sedang mengisi form.
     if(view !== "form" && view !== "terima" && view !== "opname"){ if(changed || !silent || !document.getElementById("mainContent").children.length) render(); }
-    else document.getElementById("recordCountLabel").textContent = records.length;
+    else{
+      document.getElementById("recordCountLabel").textContent = records.length;
+      if(changed) applyLiveUpdate();     // data dari perangkat lain: perbarui tanpa menghapus isian yang sedang diketik
+    }
   }catch(e){
     console.error(e);
     // Sinkron otomatis yang gagal tidak dianggap error: data di layar tetap aman, nanti dicoba lagi.
@@ -706,6 +709,26 @@ async function updateStatusOnline(id, status){
   }
 }
 
+// ---------- Pembaruan langsung dari perangkat lain (tanpa merusak isian) ----------
+let userDirty = false;      // true kalau user sudah mengetik sesuatu di halaman ini
+document.addEventListener("input", e=>{ if(e.target && e.target.closest && e.target.closest("#mainContent")) userDirty = true; }, true);
+function applyLiveUpdate(){
+  updateNavBadge();
+  if(view === "form") return;                                    // form baru: tidak diganggu
+  if(view === "terima" && typeof window.__terimaSoft === "function"){ window.__terimaSoft(); return; }
+  if(!userDirty){ render(); return; }                            // belum ada isian -> aman di-render ulang
+  showFreshNotice();
+}
+function showFreshNotice(){
+  let n = document.getElementById("freshNotice");
+  if(!n){
+    n = document.createElement("div"); n.id = "freshNotice";
+    n.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:200;background:#1f2a55;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.3);font-size:13px;display:flex;gap:12px;align-items:center;max-width:340px";
+    n.innerHTML = '<span>Ada data baru dari perangkat lain.</span><button type="button" style="background:#fff;color:#1f2a55;border:0;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer">Muat ulang</button>';
+    n.querySelector("button").onclick = ()=>{ n.remove(); render(); };
+    document.body.appendChild(n);
+  }
+}
 function startAutoSync(){
   if(!onlineMode()) return;
   if(syncTimer) clearInterval(syncTimer);
@@ -1016,6 +1039,8 @@ function updateStickyVars(){
 }
 window.addEventListener("resize", updateStickyVars);
 function render(){
+  userDirty = false; window.__terimaSoft = null;
+  const _fn = document.getElementById("freshNotice"); if(_fn) _fn.remove();
   document.getElementById("recordCountLabel").textContent = records.length;
   const main = document.getElementById("mainContent");
   // Jaga posisi scroll: kunci tinggi sementara supaya halaman tidak memendek lalu terlempar ke atas
@@ -3047,6 +3072,20 @@ function bindTerima(){
     el("sudahDiterima").checked = (r.status === "Selesai" || r.status === "Diterima");
     msg.textContent = (prior > 0 && sisa <= 0) ? `Pengadaan ini sudah diterima lengkap (${fmtNum(prior)} dari ${fmtNum(r.qty)} ${r.satuan}). Isi qty hanya jika ada penerimaan tambahan.` : "";
     setManual(true); updHint(el("qtyDiterima").value !== "");
+  };
+  window.__terimaSoft = ()=>{
+    if(multiMode){
+      const mi = multiItems();
+      const untouched = ![...multiBox.querySelectorAll("[data-q]")].some(i=> i.value !== "");
+      if(mi.length > 1 && untouched){ delete multiBox.dataset.key; apply(); }
+      return;
+    }
+    const r = find(el("terimaNo").value); if(!r) return;
+    terimaSelId = r.id;
+    el("tNama").value = r.namaBarang; el("tQty").value = r.qty; el("tSatuan").value = r.satuan;
+    const prior = terimaTotal(r), sisa = Math.round(((Number(r.qty)||0) - prior) * 100) / 100;
+    el("tTotal").value = prior; el("tSisa").value = Math.max(0, sisa);
+    renderRiwayat(r);
   };
   el("terimaNo").addEventListener("input", apply);
   el("terimaNo").addEventListener("change", apply);
